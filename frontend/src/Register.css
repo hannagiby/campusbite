@@ -1,0 +1,70 @@
+/* ===== Register-specific styles ===== */
+/* Inherits all base styles from profile.css */
+
+/* ===== Role Selector ===== */
+.role-selector {
+    display: flex;
+    gap: 10px;
+}
+
+.role-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border: 1.5px solid #ddd;
+    border-radius: 10px;
+    background: #fafafa;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+}
+
+.role-option:hover {
+    border-color: #4f7c45;
+    color: #4f7c45;
+    background: rgba(79, 124, 69, 0.05);
+    transform: translateY(-1px);
+}
+
+.role-active {
+    border-color: #4f7c45 !important;
+    color: #fff !important;
+    background: #4f7c45 !important;
+    box-shadow: 0 3px 12px rgba(79, 124, 69, 0.2);
+}
+
+.role-emoji {
+    font-size: 1.2rem;
+}
+
+/* ===== Switch Auth Link ===== */
+.switch-auth {
+    text-align: center;
+    font-size: 14px;
+    color: #64748b;
+    margin-top: 24px;
+}
+
+.switch-link {
+    background: none;
+    border: none;
+    color: #4f7c45;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    transition: color 0.2s ease;
+    padding: 0;
+}
+
+.switch-link:hover {
+    color: #3e6236;
+    text-decoration: underline;
+}
