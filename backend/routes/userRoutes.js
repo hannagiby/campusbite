@@ -103,5 +103,100 @@ router.post("/register", async (req, res) => {
   }
 });
 
+// ─── Admin: Add Canteen Staff ───
+router.post("/add-staff", async (req, res) => {
+  try {
+    const { name, username, email, password } = req.body;
+
+    if (!name || !username || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check if username or email already exists
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .or(`username.eq.${username},email.eq.${email}`)
+      .maybeSingle();
+
+    if (existingUser) {
+      return res.status(400).json({ message: "Username or Email already exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Insert canteen staff into users table
+    const { data: newStaff, error: insertError } = await supabase
+      .from("users")
+      .insert([{ name, username, password: hashedPassword, email, role: "canteen" }])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Add staff error:", insertError);
+      return res.status(500).json({ message: "Failed to add staff" });
+    }
+
+    res.status(201).json({
+      message: "Canteen staff added successfully",
+      staff: {
+        id: newStaff.id,
+        name: newStaff.name,
+        username: newStaff.username,
+        email: newStaff.email,
+        role: newStaff.role
+      }
+    });
+  } catch (error) {
+    console.error("Add staff error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── Admin: Get All Canteen Staff ───
+router.get("/staff", async (req, res) => {
+  try {
+    const { data: staff, error } = await supabase
+      .from("users")
+      .select("id, name, username, email, role")
+      .eq("role", "canteen");
+
+    if (error) {
+      console.error("Fetch staff error:", error);
+      return res.status(500).json({ message: "Failed to fetch staff" });
+    }
+
+    res.json({ staff: staff || [] });
+  } catch (error) {
+    console.error("Fetch staff error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ─── Admin: Delete Canteen Staff ───
+router.delete("/staff/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from("users")
+      .delete()
+      .eq("id", id)
+      .eq("role", "canteen");
+
+    if (error) {
+      console.error("Delete staff error:", error);
+      return res.status(500).json({ message: "Failed to delete staff" });
+    }
+
+    res.json({ message: "Staff deleted successfully" });
+  } catch (error) {
+    console.error("Delete staff error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;
 
