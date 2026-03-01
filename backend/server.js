@@ -12,10 +12,15 @@ app.use(express.json());
 
 // Routes
 app.use("/api/users", userRoutes);
+const menuRoutes = require("./routes/menuRoutes");
+app.use("/api/menu", menuRoutes);
+const categoryRoutes = require("./routes/categoryRoutes");
+app.use("/api/categories", categoryRoutes);
+const uploadRoutes = require("./routes/uploadRoutes");
+app.use("/api/upload", uploadRoutes);
 
 // Start server directly
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
 
-  

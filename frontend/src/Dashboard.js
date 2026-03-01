@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
+import Menu from "./Menu";
 import "./Dashboard.css";
 
 function Dashboard({ user, onLogout }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [view, setView] = useState("dashboard"); // "dashboard" or "profile"
+    const [view, setView] = useState("dashboard"); // "dashboard", "profile", or "menu"
 
     // Admin staff management state
     const [staffList, setStaffList] = useState([]);
@@ -17,20 +18,154 @@ function Dashboard({ user, onLogout }) {
     const [staffError, setStaffError] = useState("");
 
     // Canteen Staff state
-    const [canteenView, setCanteenView] = useState("update_menu");
+    const [canteenView, setCanteenView] = useState("update_menu"); // "update_menu", "manage_categories", or "view_bookings"
     const [foodName, setFoodName] = useState("");
     const [foodPrice, setFoodPrice] = useState("");
     const [foodSlots, setFoodSlots] = useState("");
+    const [menuSaveState, setMenuSaveState] = useState({ loading: false, error: "", success: "" });
+
+    // Categories state
+    const [categories, setCategories] = useState([]);
+    const [newCategoryName, setNewCategoryName] = useState("");
+    const [newCategoryImage, setNewCategoryImage] = useState(null);
+    const [categorySaveState, setCategorySaveState] = useState({ loading: false, error: "", success: "" });
 
     const isAdmin = (user.role || "").toLowerCase() === "admin";
     const isCanteenStaff = (user.role || "").toLowerCase() === "canteen";
 
-    // Fetch canteen staff on mount (admin only)
+    // Fetch resources
     useEffect(() => {
         if (isAdmin) {
             fetchStaff();
         }
-    }, [isAdmin]);
+        if (isCanteenStaff) {
+            fetchCategories();
+        }
+    }, [isAdmin, isCanteenStaff]);
+
+    const fetchCategories = async () => {
+        try {
+            const res = await fetch("http://localhost:5000/api/categories");
+            const data = await res.json();
+            if (res.ok) {
+                if (data.categories && data.categories.length > 0) {
+                    setCategories(data.categories);
+                } else {
+                    // Default dummy categories to fill dropdown initially if it's completely empty
+                    setCategories([
+                        { id: 1, name: "Biryani" },
+                        { id: 2, name: "Meals" },
+                        { id: 3, name: "Dosa" },
+                        { id: 4, name: "Burger" },
+                        { id: 5, name: "Pizza" },
+                    ])
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch categories:", err);
+            // Fallback on error
+            setCategories([
+                { id: 1, name: "Biryani" },
+                { id: 2, name: "Meals" },
+                { id: 3, name: "Dosa" }
+            ]);
+        }
+    };
+
+    const handleAddCategory = async () => {
+        if (!newCategoryName) {
+            setCategorySaveState({ loading: false, error: "Category name is required", success: "" });
+            return;
+        }
+
+        setCategorySaveState({ loading: true, error: "", success: "" });
+
+        let uploadedImageUrl = "";
+
+        try {
+            // 1. Upload Image (if selected)
+            if (newCategoryImage) {
+                const formData = new FormData();
+                formData.append("image", newCategoryImage);
+
+                const uploadRes = await fetch("http://localhost:5000/api/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const uploadData = await uploadRes.json();
+                if (!uploadRes.ok) {
+                    throw new Error(uploadData.message || "Failed to upload image");
+                }
+                uploadedImageUrl = uploadData.imageUrl;
+            }
+
+            // 2. Save Category
+            const res = await fetch("http://localhost:5000/api/categories", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: newCategoryName,
+                    imageUrl: uploadedImageUrl
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                setCategories([...categories, data.category].sort((a, b) => a.name.localeCompare(b.name)));
+                setCategorySaveState({ loading: false, error: "", success: "Category added successfully!" });
+                setNewCategoryName("");
+                setNewCategoryImage(null);
+                // clear file input
+                const fileInput = document.getElementById('categoryImageInput');
+                if (fileInput) fileInput.value = '';
+
+                setTimeout(() => setCategorySaveState({ loading: false, error: "", success: "" }), 3000);
+            } else {
+                setCategorySaveState({ loading: false, error: data.message || "Failed to save category", success: "" });
+            }
+        } catch (err) {
+            console.error(err);
+            setCategorySaveState({ loading: false, error: err.message || "Server error", success: "" });
+        }
+    };
+
+    const handleSaveMenu = async () => {
+        if (!foodName || !foodPrice || !foodSlots) {
+            setMenuSaveState({ loading: false, error: "Please fill in all fields", success: "" });
+            return;
+        }
+
+        // Find the selected category to get its image
+        const selectedCat = categories.find(c => c.name === foodName);
+        const imageUrl = selectedCat ? selectedCat.image_url : "default";
+
+        setMenuSaveState({ loading: true, error: "", success: "" });
+        try {
+            const res = await fetch("http://localhost:5000/api/menu", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    foodName,
+                    price: Number(foodPrice),
+                    slots: Number(foodSlots),
+                    imageUrl
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setMenuSaveState({ loading: false, error: "", success: "Menu item saved successfully!" });
+                setFoodName("");
+                setFoodPrice("");
+                setFoodSlots("");
+                setTimeout(() => setMenuSaveState({ loading: false, error: "", success: "" }), 3000);
+            } else {
+                setMenuSaveState({ loading: false, error: data.message || "Failed to save menu item", success: "" });
+            }
+        } catch (err) {
+            setMenuSaveState({ loading: false, error: "Server error", success: "" });
+        }
+    };
 
     const fetchStaff = async () => {
         try {
@@ -328,6 +463,18 @@ function Dashboard({ user, onLogout }) {
                                     Update Menu
                                 </button>
                                 <button
+                                    className={`canteen-tab ${canteenView === "manage_categories" ? "active-tab-blue" : ""}`}
+                                    onClick={() => setCanteenView("manage_categories")}
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="7" height="7"></rect>
+                                        <rect x="14" y="3" width="7" height="7"></rect>
+                                        <rect x="14" y="14" width="7" height="7"></rect>
+                                        <rect x="3" y="14" width="7" height="7"></rect>
+                                    </svg>
+                                    Manage Categories
+                                </button>
+                                <button
                                     className={`canteen-tab ${canteenView === "view_bookings" ? "active-tab-blue" : ""}`}
                                     onClick={() => setCanteenView("view_bookings")}
                                 >
@@ -347,32 +494,49 @@ function Dashboard({ user, onLogout }) {
                                 {canteenView === "update_menu" ? (
                                     <div className="canteen-form-card">
                                         <h3>Update Menu</h3>
+                                        {menuSaveState.error && <div style={{ color: "red", marginBottom: "10px" }}>{menuSaveState.error}</div>}
+                                        {menuSaveState.success && <div style={{ color: "green", marginBottom: "10px" }}>{menuSaveState.success}</div>}
                                         <div className="canteen-form-group">
-                                            <label>Food Name</label>
+                                            <label>Food Item</label>
                                             <div className="input-with-icon">
                                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                     <circle cx="11" cy="11" r="8"></circle>
                                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                                 </svg>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Food Name"
+                                                <select
                                                     value={foodName}
                                                     onChange={(e) => setFoodName(e.target.value)}
-                                                />
+                                                    style={{ width: "100%", padding: "12px 12px 12px 40px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "14px", backgroundColor: "#f8fafc" }}
+                                                >
+                                                    <option value="">Select Food Item</option>
+                                                    {categories.map((cat) => (
+                                                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
                                         <div className="canteen-form-row">
                                             <div className="canteen-form-group">
-                                                <label>Price</label>
+                                                <label>Price (₹)</label>
                                                 <div className="input-with-icon">
                                                     <span className="currency-symbol">₹</span>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="₹"
+                                                    <select
                                                         value={foodPrice}
                                                         onChange={(e) => setFoodPrice(e.target.value)}
-                                                    />
+                                                        style={{ width: "100%", padding: "12px 12px 12px 40px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "14px", backgroundColor: "#f8fafc", appearance: "none" }}
+                                                    >
+                                                        <option value="">Select Price</option>
+                                                        <option value="10">10</option>
+                                                        <option value="20">20</option>
+                                                        <option value="30">30</option>
+                                                        <option value="40">40</option>
+                                                        <option value="50">50</option>
+                                                        <option value="60">60</option>
+                                                        <option value="80">80</option>
+                                                        <option value="100">100</option>
+                                                        <option value="120">120</option>
+                                                        <option value="150">150</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                             <div className="canteen-form-group">
@@ -385,7 +549,64 @@ function Dashboard({ user, onLogout }) {
                                                 />
                                             </div>
                                         </div>
-                                        <button className="canteen-save-btn">Save Item</button>
+                                        <button
+                                            className="canteen-save-btn"
+                                            onClick={handleSaveMenu}
+                                            disabled={menuSaveState.loading}
+                                        >
+                                            {menuSaveState.loading ? "Saving..." : "Save Item"}
+                                        </button>
+                                    </div>
+                                ) : canteenView === "manage_categories" ? (
+                                    <div className="canteen-form-card">
+                                        <h3>Manage Categories</h3>
+                                        <p style={{ color: "#64748b", margin: "4px 0 16px 0", fontSize: "14px" }}>Add new food entries to popuate your dropdown.</p>
+
+                                        {categorySaveState.error && <div style={{ color: "red", marginBottom: "10px" }}>{categorySaveState.error}</div>}
+                                        {categorySaveState.success && <div style={{ color: "green", marginBottom: "10px" }}>{categorySaveState.success}</div>}
+
+                                        <div className="canteen-form-group">
+                                            <label>Category Name</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Samosa"
+                                                value={newCategoryName}
+                                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                                style={{ width: "100%", padding: "12px", border: "1px solid #e2e8f0", borderRadius: "8px" }}
+                                            />
+                                        </div>
+
+                                        <div className="canteen-form-group">
+                                            <label>Food Image</label>
+                                            <input
+                                                id="categoryImageInput"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => setNewCategoryImage(e.target.files[0])}
+                                                style={{ width: "100%", padding: "10px", border: "1px dashed #cbd5e1", borderRadius: "8px", backgroundColor: "#f8fafc" }}
+                                            />
+                                        </div>
+
+                                        <button
+                                            className="canteen-save-btn"
+                                            onClick={handleAddCategory}
+                                            disabled={categorySaveState.loading}
+                                            style={{ backgroundColor: "#3b82f6" }}
+                                        >
+                                            {categorySaveState.loading ? "Saving..." : "Add Category"}
+                                        </button>
+
+                                        <div style={{ marginTop: "24px" }}>
+                                            <h4 style={{ margin: "0 0 12px 0", fontSize: "15px", color: "#1e293b" }}>Existing Categories</h4>
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                                                {categories.map((cat) => (
+                                                    <span key={cat.id} style={{ padding: "6px 12px", backgroundColor: "#e2e8f0", borderRadius: "20px", fontSize: "12px", color: "#334155" }}>
+                                                        {cat.name} {cat.image_url && "(📷)"}
+                                                    </span>
+                                                ))}
+                                                {categories.length === 0 && <span style={{ color: "#94a3b8", fontSize: "13px" }}>No categories created yet.</span>}
+                                            </div>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="canteen-form-card">
@@ -456,7 +677,7 @@ function Dashboard({ user, onLogout }) {
                                     <div className="action-info-dark">
                                         <h3>Quick Book</h3>
                                         <p>Skip the wait and book your favorite meals instantly with just a few clicks</p>
-                                        <button className="action-btn-green">
+                                        <button className="action-btn-green" onClick={() => setView("menu")}>
                                             Book Now <span>→</span>
                                         </button>
                                     </div>
@@ -464,6 +685,8 @@ function Dashboard({ user, onLogout }) {
                             </section>
                         </>
                     )
+                ) : view === "menu" ? (
+                    <Menu onBack={() => setView("dashboard")} />
                 ) : (
                     <section className="profile-section">
                         <div className="profile-card">
