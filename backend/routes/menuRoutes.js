@@ -84,4 +84,55 @@ router.post("/", async (req, res) => {
     }
 });
 
+// POST to book an item
+router.post("/book", async (req, res) => {
+    try {
+        const { foodId, quantity } = req.body;
+
+        if (!foodId || !quantity || quantity < 1) {
+            return res.status(400).json({ message: "Invalid booking request" });
+        }
+
+        // Fetch the current item to check slots
+        const { data: item, error: fetchError } = await supabase
+            .from("menu_items")
+            .select("*")
+            .eq("id", foodId)
+            .single();
+
+        if (fetchError || !item) {
+            return res.status(404).json({ message: "Food item not found" });
+        }
+
+        if (item.slots < quantity) {
+            return res.status(400).json({ message: `Only ${item.slots} slots available` });
+        }
+
+        // Reduce slots
+        const newSlots = item.slots - quantity;
+
+        const { data: updatedItem, error: updateError } = await supabase
+            .from("menu_items")
+            .update({ slots: newSlots })
+            .eq("id", foodId)
+            .select()
+            .single();
+
+        if (updateError) {
+            return res.status(500).json({ message: "Failed to update slots" });
+        }
+
+        // Here you would typically also create an order record for the user
+
+        res.status(200).json({
+            message: "Booking successful",
+            item: updatedItem
+        });
+
+    } catch (error) {
+        console.error("Booking exception:", error);
+        res.status(500).json({ message: "Server error during booking" });
+    }
+});
+
 module.exports = router;

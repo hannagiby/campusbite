@@ -14,7 +14,7 @@ const foodImages = {
 
 const defaultImage = "https://images.unsplash.com/photo-1495195134817-a169d5622329?q=80&w=500&auto=format&fit=crop";
 
-function Menu({ onBack }) {
+function Menu({ onBack, onBookItem }) {
     const [menuItems, setMenuItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -40,7 +40,11 @@ function Menu({ onBack }) {
     }, []);
 
     const handleBook = (item) => {
-        alert(`Booking ${item.food_name}. Integration for orders can be added here!`);
+        if (onBookItem) {
+            onBookItem(item);
+        } else {
+            alert(`Booking ${item.food_name}. Integration for orders can be added here!`);
+        }
     };
 
     return (

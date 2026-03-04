@@ -1,0 +1,123 @@
+.out-of-stock-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 80px);
+    /* Adjust based on navbar */
+    background-color: #f1f5f9;
+    /* Subtle gray background */
+    font-family: 'Inter', -apple-system, sans-serif;
+    padding: 40px 20px;
+}
+
+.out-of-stock-card {
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+}
+
+.out-of-stock-banner {
+    background-color: #fcd34d;
+    /* Soft yellow matching design */
+    color: #78350f;
+    /* Dark brown/orange text */
+    padding: 20px;
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.banner-icon {
+    font-size: 28px;
+}
+
+.out-of-stock-content {
+    padding: 40px 32px;
+}
+
+.item-illustration {
+    width: 160px;
+    height: 120px;
+    margin: 0 auto 32px auto;
+    border-radius: 60%;
+    /* To give an oval shadow effect if needed */
+    position: relative;
+}
+
+/* Simulate the shadow underneath the food */
+.item-illustration::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    z-index: 0;
+}
+
+.item-illustration img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    position: relative;
+    z-index: 1;
+}
+
+.out-of-stock-title {
+    font-size: 20px;
+    color: #334155;
+    font-weight: 500;
+    margin: 0 0 24px 0;
+    line-height: 1.4;
+}
+
+.out-of-stock-title strong {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.out-of-stock-divider {
+    height: 1px;
+    background-color: #e2e8f0;
+    width: 100%;
+    margin: 24px 0;
+}
+
+.out-of-stock-message {
+    font-size: 16px;
+    color: #475569;
+    margin: 0 0 12px 0;
+}
+
+.out-of-stock-submessage {
+    font-size: 15px;
+    color: #64748b;
+    margin: 0 0 32px 0;
+}
+
+.back-to-menu-btn {
+    padding: 12px 32px;
+    background-color: #f8fafc;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.back-to-menu-btn:hover {
+    background-color: #f1f5f9;
+    border-color: #94a3b8;
+}

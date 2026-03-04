@@ -1,0 +1,254 @@
+.confirm-order-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: calc(100vh - 80px);
+    /* Adjust based on navbar */
+    background-color: #fcfcfb;
+    /* Soft warm background */
+    font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.confirm-order-header {
+    text-align: left;
+    max-width: 500px;
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+.confirm-order-header h2 {
+    font-size: 28px;
+    color: #0f172a;
+    margin: 0 0 8px 0;
+    font-weight: 700;
+}
+
+.confirm-order-header p {
+    font-size: 15px;
+    color: #64748b;
+    margin: 0;
+}
+
+.confirm-order-card {
+    background: #ffffff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+    max-width: 500px;
+    width: 100%;
+}
+
+.confirm-order-image-banner {
+    position: relative;
+    width: 100%;
+    height: 240px;
+    overflow: hidden;
+}
+
+.confirm-order-image-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tokens-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #f97316;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.confirm-order-content {
+    padding: 24px 32px;
+}
+
+.food-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+}
+
+.course-tag {
+    display: inline-block;
+    background-color: #ecfdf5;
+    color: #10b981;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 24px;
+}
+
+.quantity-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.quantity-label {
+    font-size: 14px;
+    color: #475569;
+    font-weight: 600;
+}
+
+.quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.qty-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #f97316;
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.qty-btn:hover {
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.qty-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    min-width: 40px;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+    padding: 8px 0;
+    border-radius: 8px;
+}
+
+.calculation-box {
+    background-color: #f8fafc;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 32px;
+}
+
+.calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.calc-row:last-child {
+    margin-bottom: 0;
+}
+
+.calc-label {
+    font-size: 14px;
+    color: #475569;
+}
+
+.calc-value {
+    font-size: 14px;
+    color: #1e293b;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.calc-divider {
+    border: 0;
+    height: 1px;
+    background-color: #e2e8f0;
+    margin: 16px 0;
+}
+
+.total-row {
+    margin-top: 16px;
+}
+
+.calc-label-total {
+    font-size: 16px;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.calc-value-total {
+    font-size: 22px;
+    color: #ea580c;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.token-icon {
+    font-size: 16px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 16px;
+}
+
+.btn-cancel {
+    flex: 1;
+    padding: 14px 0;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-cancel:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.btn-proceed {
+    flex: 2;
+    padding: 14px 0;
+    border-radius: 8px;
+    border: none;
+    background: #10b981;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.btn-proceed:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.proceed-icon {
+    font-size: 16px;
+}

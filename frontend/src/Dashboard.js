@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import Menu from "./Menu";
+import ConfirmOrder from "./ConfirmOrder";
+import OutOfStock from "./OutOfStock";
 import "./Dashboard.css";
 
 function Dashboard({ user, onLogout }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [view, setView] = useState("dashboard"); // "dashboard", "profile", or "menu"
+    const [view, setView] = useState("dashboard"); // "dashboard", "profile", "menu", "confirm_order", "out_of_stock"
+    const [selectedItem, setSelectedItem] = useState(null);
 
     // Admin staff management state
     const [staffList, setStaffList] = useState([]);
@@ -251,6 +254,39 @@ function Dashboard({ user, onLogout }) {
             it: "Information Technology",
         };
         return deptMap[deptCode] || "General Department";
+    };
+
+    const handleBookItem = (item) => {
+        setSelectedItem(item);
+        if (item.slots > 0) {
+            setView("confirm_order");
+        } else {
+            setView("out_of_stock");
+        }
+    };
+
+    const handleConfirmOrder = async (item, quantity, totalTokens) => {
+        try {
+            // Simplified booking logical simulation
+            const res = await fetch("http://localhost:5000/api/menu/book", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    foodId: item.id,
+                    quantity: quantity
+                })
+            });
+
+            if (res.ok) {
+                alert(`Successfully booked ${quantity}x ${item.food_name} for ${totalTokens} tokens!`);
+                setView("dashboard"); // Return to dashboard
+            } else {
+                const data = await res.json();
+                alert(`Booking failed: ${data.message || "Could not complete order"}`);
+            }
+        } catch (err) {
+            alert("Error connecting to server to place order.");
+        }
     };
 
     return (
@@ -686,7 +722,18 @@ function Dashboard({ user, onLogout }) {
                         </>
                     )
                 ) : view === "menu" ? (
-                    <Menu onBack={() => setView("dashboard")} />
+                    <Menu onBack={() => setView("dashboard")} onBookItem={handleBookItem} />
+                ) : view === "confirm_order" ? (
+                    <ConfirmOrder
+                        item={selectedItem}
+                        onCancel={() => setView("menu")}
+                        onProceed={handleConfirmOrder}
+                    />
+                ) : view === "out_of_stock" ? (
+                    <OutOfStock
+                        item={selectedItem}
+                        onBackToMenu={() => setView("menu")}
+                    />
                 ) : (
                     <section className="profile-section">
                         <div className="profile-card">
