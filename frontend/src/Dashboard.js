@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import Menu from "./Menu";
 import ConfirmOrder from "./ConfirmOrder";
 import OutOfStock from "./OutOfStock";
+import Cart from "./Cart";
 import "./Dashboard.css";
 
 function Dashboard({ user, onLogout }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [view, setView] = useState("dashboard"); // "dashboard", "profile", "menu", "confirm_order", "out_of_stock"
+    const [view, setView] = useState("dashboard"); // "dashboard", "profile", "menu", "confirm_order", "out_of_stock", "cart"
     const [selectedItem, setSelectedItem] = useState(null);
+    const [cart, setCart] = useState([]);
 
     // Admin staff management state
     const [staffList, setStaffList] = useState([]);
@@ -283,6 +285,49 @@ function Dashboard({ user, onLogout }) {
             } else {
                 const data = await res.json();
                 alert(`Booking failed: ${data.message || "Could not complete order"}`);
+            }
+        } catch (err) {
+            alert("Error connecting to server to place order.");
+        }
+    };
+
+    const handleUpdateCartQuantity = (index, delta) => {
+        const newCart = [...cart];
+        const item = newCart[index];
+        const newQuantity = item.quantity + delta;
+        if (newQuantity > 0 && newQuantity <= item.slots) {
+            item.quantity = newQuantity;
+            setCart(newCart);
+        } else if (newQuantity <= 0) {
+            handleRemoveCartItem(index);
+        } else if (newQuantity > item.slots) {
+            alert(`Only ${item.slots} slots available for ${item.food_name}!`);
+        }
+    };
+
+    const handleRemoveCartItem = (index) => {
+        const newCart = [...cart];
+        newCart.splice(index, 1);
+        setCart(newCart);
+    };
+
+    const handleCheckoutCart = async () => {
+        if (cart.length === 0) return;
+
+        try {
+            const res = await fetch("http://localhost:5000/api/menu/book-cart", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items: cart })
+            });
+
+            if (res.ok) {
+                alert("Successfully checked out all items!");
+                setCart([]);
+                setView("dashboard"); // Return to dashboard
+            } else {
+                const data = await res.json();
+                alert(`Checkout failed: ${data.message || "Could not complete order"}`);
             }
         } catch (err) {
             alert("Error connecting to server to place order.");
@@ -629,7 +674,7 @@ function Dashboard({ user, onLogout }) {
                                             disabled={categorySaveState.loading}
                                             style={{ backgroundColor: "#3b82f6" }}
                                         >
-                                            {categorySaveState.loading ? "Saving..." : "Add Category"}
+                                            {categorySaveState.loading ? "Saving..." : "Add item"}
                                         </button>
 
                                         <div style={{ marginTop: "24px" }}>
@@ -722,7 +767,21 @@ function Dashboard({ user, onLogout }) {
                         </>
                     )
                 ) : view === "menu" ? (
-                    <Menu onBack={() => setView("dashboard")} onBookItem={handleBookItem} />
+                    <Menu
+                        onBack={() => setView("dashboard")}
+                        onBookItem={handleBookItem}
+                        cart={cart}
+                        setCart={setCart}
+                        onProceedToCart={() => setView("cart")}
+                    />
+                ) : view === "cart" ? (
+                    <Cart
+                        cart={cart}
+                        onUpdateQuantity={handleUpdateCartQuantity}
+                        onRemoveItem={handleRemoveCartItem}
+                        onProceedToPayment={handleCheckoutCart}
+                        onBack={() => setView("menu")}
+                    />
                 ) : view === "confirm_order" ? (
                     <ConfirmOrder
                         item={selectedItem}

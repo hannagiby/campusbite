@@ -135,4 +135,66 @@ router.post("/book", async (req, res) => {
     }
 });
 
+// POST to book a cart of items
+router.post("/book-cart", async (req, res) => {
+    try {
+        const { items } = req.body;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: "Invalid cart data" });
+        }
+
+        const errors = [];
+        const updatedItems = [];
+
+        for (const cartItem of items) {
+            const { data: item, error: fetchError } = await supabase
+                .from("menu_items")
+                .select("*")
+                .eq("id", cartItem.id)
+                .single();
+
+            if (fetchError || !item) {
+                errors.push(`${cartItem.food_name} not found`);
+                continue;
+            }
+
+            if (item.slots < cartItem.quantity) {
+                errors.push(`Only ${item.slots} slots available for ${item.food_name}`);
+                continue;
+            }
+
+            const newSlots = item.slots - cartItem.quantity;
+
+            const { data: updatedItem, error: updateError } = await supabase
+                .from("menu_items")
+                .update({ slots: newSlots })
+                .eq("id", item.id)
+                .select()
+                .single();
+
+            if (updateError) {
+                errors.push(`Failed to update ${item.food_name}`);
+            } else {
+                updatedItems.push(updatedItem);
+                console.log(`Booking cart item: ${cartItem.quantity}x ${item.food_name}`);
+            }
+        }
+
+        if (errors.length > 0 && updatedItems.length === 0) {
+            return res.status(400).json({ message: "Checkout failed", details: errors });
+        }
+
+        res.status(200).json({
+            message: "Cart booking successful",
+            items: updatedItems,
+            errors: errors.length > 0 ? errors : undefined
+        });
+
+    } catch (error) {
+        console.error("Cart booking exception:", error);
+        res.status(500).json({ message: "Server error during cart booking" });
+    }
+});
+
 module.exports = router;
