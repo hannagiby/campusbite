@@ -22,3 +22,10 @@ CREATE TABLE IF NOT EXISTS food_categories (
   image_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS food_certificates (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_name TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);

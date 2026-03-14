@@ -12,6 +12,7 @@ function Dashboard({ user, onLogout }) {
     const [cart, setCart] = useState([]);
 
     // Admin staff management state
+    const [adminView, setAdminView] = useState("manage_staff"); // "manage_staff" or "upload_certificate"
     const [staffList, setStaffList] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newStaffName, setNewStaffName] = useState("");
@@ -21,6 +22,10 @@ function Dashboard({ user, onLogout }) {
     const [editIndex, setEditIndex] = useState(null);
     const [staffLoading, setStaffLoading] = useState(false);
     const [staffError, setStaffError] = useState("");
+
+    // Upload Certificate State
+    const [certificateFile, setCertificateFile] = useState(null);
+    const [uploadState, setUploadState] = useState({ loading: false, error: "", success: "" });
 
     // Canteen Staff state
     const [canteenView, setCanteenView] = useState("update_menu"); // "update_menu", "manage_categories", or "view_bookings"
@@ -242,6 +247,35 @@ function Dashboard({ user, onLogout }) {
         setStaffError("");
     };
 
+    const handleUploadCertificate = async () => {
+        if (!certificateFile) {
+            setUploadState({ loading: false, error: "Please select a file to upload", success: "" });
+            return;
+        }
+        setUploadState({ loading: true, error: "", success: "" });
+        const formData = new FormData();
+        formData.append("certificate", certificateFile);
+
+        try {
+            const res = await fetch("http://localhost:5000/api/upload/certificate", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setUploadState({ loading: false, error: "", success: "Certificate uploaded successfully!" });
+                setCertificateFile(null);
+                const fileInput = document.getElementById("certificateInput");
+                if (fileInput) fileInput.value = "";
+                setTimeout(() => setUploadState({ loading: false, error: "", success: "" }), 3000);
+            } else {
+                setUploadState({ loading: false, error: data.message || "Upload failed", success: "" });
+            }
+        } catch (err) {
+            setUploadState({ loading: false, error: "Server error during upload", success: "" });
+        }
+    };
+
     // Extract department from College ID (e.g., 23cs113 -> Computer Science)
     const getDepartment = (username) => {
         if (!username) return "Unknown";
@@ -405,7 +439,7 @@ function Dashboard({ user, onLogout }) {
 
                             {/* Quick Action Buttons */}
                             <section className="admin-quick-actions">
-                                <button className="admin-action-btn manage-staff-btn">
+                                <button className={`admin-action-btn manage-staff-btn ${adminView === "manage_staff" ? "active" : ""}`} onClick={() => setAdminView("manage_staff")}>
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                         <circle cx="9" cy="7" r="4"></circle>
@@ -414,7 +448,7 @@ function Dashboard({ user, onLogout }) {
                                     </svg>
                                     <span>Manage Staff</span>
                                 </button>
-                                <button className="admin-action-btn grievance-btn">
+                                <button className="admin-action-btn grievance-btn" onClick={() => alert("Grievance management coming soon!")}>
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                         <polyline points="14 2 14 8 20 8"></polyline>
@@ -424,7 +458,7 @@ function Dashboard({ user, onLogout }) {
                                     </svg>
                                     <span>Grievance Management</span>
                                 </button>
-                                <button className="admin-action-btn upload-btn">
+                                <button className={`admin-action-btn upload-btn ${adminView === "upload_certificate" ? "active" : ""}`} onClick={() => setAdminView("upload_certificate")}>
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                         <polyline points="17 8 12 3 7 8"></polyline>
@@ -434,9 +468,10 @@ function Dashboard({ user, onLogout }) {
                                 </button>
                             </section>
 
-                            {/* Manage Staff Table */}
-                            <section className="admin-table-section">
-                                <h3>Manage Staff</h3>
+                            {/* Content based on Admin View */}
+                            {adminView === "manage_staff" ? (
+                                <section className="admin-table-section">
+                                    <h3>Manage Staff</h3>
                                 <div className="admin-table-wrapper">
                                     <table className="admin-table">
                                         <thead>
@@ -520,7 +555,37 @@ function Dashboard({ user, onLogout }) {
                                 {!showAddForm && (
                                     <button className="add-staff-btn" onClick={() => setShowAddForm(true)}>+ Add Staff</button>
                                 )}
-                            </section>
+                                </section>
+                            ) : (
+                                <section className="admin-upload-section" style={{ backgroundColor: "white", borderRadius: "16px", padding: "24px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)" }}>
+                                    <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#1e293b" }}>Upload Certificate</h3>
+                                    <div className="upload-form-card" style={{ maxWidth: "500px" }}>
+                                        <p style={{ color: "#64748b", margin: "4px 0 16px 0", fontSize: "14px" }}>Upload food quality or safety certificates here.</p>
+                                        {uploadState.error && <div style={{ color: "red", marginBottom: "10px", fontSize: "14px", padding: "10px", backgroundColor: "#fef2f2", borderRadius: "6px" }}>{uploadState.error}</div>}
+                                        {uploadState.success && <div style={{ color: "green", marginBottom: "10px", fontSize: "14px", padding: "10px", backgroundColor: "#f0fdf4", borderRadius: "6px" }}>{uploadState.success}</div>}
+                                        
+                                        <div className="form-group" style={{ marginBottom: "20px" }}>
+                                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#334155" }}>Certificate File</label>
+                                            <input
+                                                id="certificateInput"
+                                                type="file"
+                                                onChange={(e) => setCertificateFile(e.target.files[0])}
+                                                style={{ width: "100%", padding: "12px", border: "1px dashed #cbd5e1", borderRadius: "8px", backgroundColor: "#f8fafc", cursor: "pointer" }}
+                                            />
+                                        </div>
+                                        <button 
+                                            className="upload-submit-btn" 
+                                            onClick={handleUploadCertificate} 
+                                            disabled={uploadState.loading}
+                                            style={{ backgroundColor: "#3b82f6", color: "white", padding: "12px 24px", border: "none", borderRadius: "8px", cursor: uploadState.loading ? "not-allowed" : "pointer", fontWeight: "600", width: "100%", transition: "background-color 0.2s" }}
+                                            onMouseOver={(e) => !uploadState.loading && (e.currentTarget.style.backgroundColor = "#2563eb")}
+                                            onMouseOut={(e) => !uploadState.loading && (e.currentTarget.style.backgroundColor = "#3b82f6")}
+                                        >
+                                            {uploadState.loading ? "Uploading..." : "Upload Certificate"}
+                                        </button>
+                                    </div>
+                                </section>
+                            )}
                         </>
                     ) : isCanteenStaff ? (
                         /* ─── Canteen Staff Dashboard ─── */
