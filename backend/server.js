@@ -18,6 +18,8 @@ const categoryRoutes = require("./routes/categoryRoutes");
 app.use("/api/categories", categoryRoutes);
 const uploadRoutes = require("./routes/uploadRoutes");
 app.use("/api/upload", uploadRoutes);
+const grievanceRoutes = require("./routes/grievanceRoutes");
+app.use("/api/grievances", grievanceRoutes);
 
 // Start server directly
 app.listen(PORT, () => {

@@ -98,4 +98,24 @@ router.post("/certificate", upload.single("certificate"), async (req, res) => {
     }
 });
 
+// GET all certificates
+router.get("/certificates", async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from("food_certificates")
+            .select("*")
+            .order("uploaded_at", { ascending: false });
+
+        if (error) {
+            console.error("Supabase error fetching certificates:", error);
+            return res.status(500).json({ message: "Failed to fetch certificates", errorDetails: error });
+        }
+
+        res.status(200).json({ certificates: data });
+    } catch (error) {
+        console.error("Exception fetching certificates:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 module.exports = router;

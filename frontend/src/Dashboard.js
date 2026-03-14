@@ -7,9 +7,27 @@ import "./Dashboard.css";
 
 function Dashboard({ user, onLogout }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [view, setView] = useState("dashboard"); // "dashboard", "profile", "menu", "confirm_order", "out_of_stock", "cart"
+    const [view, setView] = useState("dashboard"); // "dashboard", "student_dashboard", "certificate", "staff_panel", "profile", "menu", "confirm_order", "out_of_stock", "cart"
+
+    // Grievance state
+    const [showGrievanceModal, setShowGrievanceModal] = useState(false);
+    const [grievanceCategory, setGrievanceCategory] = useState("");
+    const [grievanceDetails, setGrievanceDetails] = useState("");
+    const [grievanceAnonymous, setGrievanceAnonymous] = useState(true);
+    const [grievanceSubmitState, setGrievanceSubmitState] = useState({ loading: false, error: "", success: "" });
+    // Admin grievance view state
+    const [grievances, setGrievances] = useState([]);
+    const [grievanceLoading, setGrievanceLoading] = useState(false);
+    const [grievanceError, setGrievanceError] = useState("");
     const [selectedItem, setSelectedItem] = useState(null);
     const [cart, setCart] = useState([]);
+    const [orderCount, setOrderCount] = useState(0);
+    const [certificates, setCertificates] = useState([]);
+    const [certLoading, setCertLoading] = useState(false);
+    const [certError, setCertError] = useState("");
+    const [staffPanel, setStaffPanel] = useState([]);
+    const [staffPanelLoading, setStaffPanelLoading] = useState(false);
+    const [staffPanelError, setStaffPanelError] = useState("");
 
     // Admin staff management state
     const [adminView, setAdminView] = useState("manage_staff"); // "manage_staff" or "upload_certificate"
@@ -247,6 +265,15 @@ function Dashboard({ user, onLogout }) {
         setStaffError("");
     };
 
+    const handleEditStaff = (index) => {
+        const staff = staffList[index];
+        setEditIndex(index);
+        setNewStaffName(staff.name || "");
+        setNewStaffUsername(staff.username || "");
+        setNewStaffEmail(staff.email || "");
+        setShowAddForm(true);
+    };
+
     const handleUploadCertificate = async () => {
         if (!certificateFile) {
             setUploadState({ loading: false, error: "Please select a file to upload", success: "" });
@@ -298,6 +325,139 @@ function Dashboard({ user, onLogout }) {
             setView("confirm_order");
         } else {
             setView("out_of_stock");
+        }
+    };
+
+    const fetchCertificates = async () => {
+        setCertLoading(true);
+        setCertError("");
+        try {
+            const res = await fetch("http://localhost:5000/api/upload/certificates");
+            const data = await res.json();
+            if (res.ok) {
+                setCertificates(data.certificates || []);
+            } else {
+                setCertError(data.message || "Failed to load certificates");
+            }
+        } catch (err) {
+            setCertError("Could not connect to server.");
+        }
+        setCertLoading(false);
+    };
+
+    const fetchStaffPanel = async () => {
+        setStaffPanelLoading(true);
+        setStaffPanelError("");
+        try {
+            const res = await fetch("http://localhost:5000/api/users/staff");
+            const data = await res.json();
+            if (res.ok) {
+                setStaffPanel(data.staff || []);
+            } else {
+                setStaffPanelError(data.message || "Failed to load staff");
+            }
+        } catch (err) {
+            setStaffPanelError("Could not connect to server.");
+        }
+        setStaffPanelLoading(false);
+    };
+
+    // Grievance handlers
+    const grievanceCategories = [
+        "Food Quality",
+        "Hygiene Issue",
+        "Service Delay",
+        "Billing Issue",
+        "Staff Behavior",
+        "Facility Maintenance",
+        "Other"
+    ];
+
+    const handleOpenGrievanceModal = () => {
+        setGrievanceCategory("");
+        setGrievanceDetails("");
+        setGrievanceAnonymous(true);
+        setGrievanceSubmitState({ loading: false, error: "", success: "" });
+        setShowGrievanceModal(true);
+    };
+
+    const handleCloseGrievanceModal = () => {
+        setShowGrievanceModal(false);
+    };
+
+    const handleSubmitGrievance = async () => {
+        if (!grievanceCategory) {
+            setGrievanceSubmitState({ loading: false, error: "Please select a category.", success: "" });
+            return;
+        }
+        if (!grievanceDetails.trim()) {
+            setGrievanceSubmitState({ loading: false, error: "Please describe your complaint.", success: "" });
+            return;
+        }
+
+        setGrievanceSubmitState({ loading: true, error: "", success: "" });
+        try {
+            const res = await fetch("http://localhost:5000/api/grievances", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    category: grievanceCategory,
+                    details: grievanceDetails.trim(),
+                    isAnonymous: grievanceAnonymous,
+                    user: {
+                        name: user.name,
+                        username: user.username,
+                        email: user.email,
+                        role: user.role
+                    }
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setGrievanceSubmitState({ loading: false, error: "", success: "Grievance submitted successfully!" });
+                setTimeout(() => {
+                    setShowGrievanceModal(false);
+                }, 1500);
+            } else {
+                setGrievanceSubmitState({ loading: false, error: data.message || "Failed to submit grievance.", success: "" });
+            }
+        } catch (err) {
+            setGrievanceSubmitState({ loading: false, error: "Server error. Please try again.", success: "" });
+        }
+    };
+
+    const fetchGrievances = async () => {
+        setGrievanceLoading(true);
+        setGrievanceError("");
+        try {
+            const res = await fetch("http://localhost:5000/api/grievances");
+            const data = await res.json();
+            if (res.ok) {
+                setGrievances(data.grievances || []);
+            } else {
+                setGrievanceError(data.message || "Failed to load grievances.");
+            }
+        } catch (err) {
+            setGrievanceError("Could not connect to server.");
+        }
+        setGrievanceLoading(false);
+    };
+
+    const handleUpdateGrievanceStatus = async (id, newStatus) => {
+        try {
+            const res = await fetch(`http://localhost:5000/api/grievances/${id}/status`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setGrievances(grievances.map(g => g.id === id ? { ...g, status: newStatus } : g));
+            } else {
+                alert(data.message || "Failed to update status.");
+            }
+        } catch (err) {
+            alert("Server error. Could not update status.");
         }
     };
 
@@ -448,7 +608,7 @@ function Dashboard({ user, onLogout }) {
                                     </svg>
                                     <span>Manage Staff</span>
                                 </button>
-                                <button className="admin-action-btn grievance-btn" onClick={() => alert("Grievance management coming soon!")}>
+                                <button className={`admin-action-btn grievance-btn ${adminView === "view_grievances" ? "active" : ""}`} onClick={() => { setAdminView("view_grievances"); fetchGrievances(); }}>
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                         <polyline points="14 2 14 8 20 8"></polyline>
@@ -472,98 +632,98 @@ function Dashboard({ user, onLogout }) {
                             {adminView === "manage_staff" ? (
                                 <section className="admin-table-section">
                                     <h3>Manage Staff</h3>
-                                <div className="admin-table-wrapper">
-                                    <table className="admin-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Name</th>
-                                                <th>Username</th>
-                                                <th>Email</th>
-                                                <th>Role</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {staffList.length === 0 && !showAddForm ? (
+                                    <div className="admin-table-wrapper">
+                                        <table className="admin-table">
+                                            <thead>
                                                 <tr>
-                                                    <td colSpan="5" style={{ textAlign: "center", color: "#94a3b8", padding: "32px 16px" }}>
-                                                        No staff added yet. Click "+ Add Staff" to get started.
-                                                    </td>
+                                                    <th>Name</th>
+                                                    <th>Username</th>
+                                                    <th>Email</th>
+                                                    <th>Role</th>
+                                                    <th>Actions</th>
                                                 </tr>
-                                            ) : (
-                                                staffList.map((staff, index) => (
-                                                    <tr key={index}>
-                                                        <td>{staff.name}</td>
-                                                        <td>{staff.username}</td>
-                                                        <td>{staff.email}</td>
-                                                        <td><span className={`role-tag ${staff.role.toLowerCase()}`}>{staff.role}</span></td>
-                                                        <td>
-                                                            <button className="table-btn edit-btn" onClick={() => handleEditStaff(index)}>✏️ Edit</button>
-                                                            <button className="table-btn delete-btn" style={{ marginLeft: "8px" }} onClick={() => handleDeleteStaff(index)}>🗑️ Delete</button>
+                                            </thead>
+                                            <tbody>
+                                                {staffList.length === 0 && !showAddForm ? (
+                                                    <tr>
+                                                        <td colSpan="5" style={{ textAlign: "center", color: "#94a3b8", padding: "32px 16px" }}>
+                                                            No staff added yet. Click "+ Add Staff" to get started.
                                                         </td>
                                                     </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Add / Edit Staff Form */}
-                                {showAddForm && (
-                                    <div className="add-staff-form">
-                                        <h4>{editIndex !== null ? "Edit Staff" : "Add New Staff"}</h4>
-                                        {staffError && <div className="error-message" style={{ color: "red", marginBottom: "12px", fontSize: "14px" }}>{staffError}</div>}
-                                        <div className="form-row">
-                                            <input
-                                                type="text"
-                                                placeholder="Staff Name"
-                                                value={newStaffName}
-                                                onChange={(e) => setNewStaffName(e.target.value)}
-                                            />
-                                            <input
-                                                type="text"
-                                                placeholder="Username"
-                                                value={newStaffUsername}
-                                                onChange={(e) => setNewStaffUsername(e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="form-row">
-                                            <input
-                                                type="email"
-                                                placeholder="Staff Email"
-                                                value={newStaffEmail}
-                                                onChange={(e) => setNewStaffEmail(e.target.value)}
-                                            />
-                                            {editIndex === null && (
-                                                <input
-                                                    type="password"
-                                                    placeholder="Temporary Password"
-                                                    value={newStaffPassword}
-                                                    onChange={(e) => setNewStaffPassword(e.target.value)}
-                                                />
-                                            )}
-                                        </div>
-                                        <div className="form-actions">
-                                            <button className="add-staff-btn" onClick={handleAddStaff} disabled={staffLoading}>
-                                                {staffLoading ? "Processing..." : (editIndex !== null ? "Save Changes" : "Add Staff")}
-                                            </button>
-                                            <button className="cancel-btn" onClick={handleCancelForm} disabled={staffLoading}>Cancel</button>
-                                        </div>
+                                                ) : (
+                                                    staffList.map((staff, index) => (
+                                                        <tr key={index}>
+                                                            <td>{staff.name}</td>
+                                                            <td>{staff.username}</td>
+                                                            <td>{staff.email}</td>
+                                                            <td><span className={`role-tag ${staff.role.toLowerCase()}`}>{staff.role}</span></td>
+                                                            <td>
+                                                                <button className="table-btn edit-btn" onClick={() => handleEditStaff(index)}>✏️ Edit</button>
+                                                                <button className="table-btn delete-btn" style={{ marginLeft: "8px" }} onClick={() => handleDeleteStaff(index)}>🗑️ Delete</button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
                                     </div>
-                                )}
 
-                                {!showAddForm && (
-                                    <button className="add-staff-btn" onClick={() => setShowAddForm(true)}>+ Add Staff</button>
-                                )}
+                                    {/* Add / Edit Staff Form */}
+                                    {showAddForm && (
+                                        <div className="add-staff-form">
+                                            <h4>{editIndex !== null ? "Edit Staff" : "Add New Staff"}</h4>
+                                            {staffError && <div className="error-message" style={{ color: "red", marginBottom: "12px", fontSize: "14px" }}>{staffError}</div>}
+                                            <div className="form-row">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Staff Name"
+                                                    value={newStaffName}
+                                                    onChange={(e) => setNewStaffName(e.target.value)}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Username"
+                                                    value={newStaffUsername}
+                                                    onChange={(e) => setNewStaffUsername(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="form-row">
+                                                <input
+                                                    type="email"
+                                                    placeholder="Staff Email"
+                                                    value={newStaffEmail}
+                                                    onChange={(e) => setNewStaffEmail(e.target.value)}
+                                                />
+                                                {editIndex === null && (
+                                                    <input
+                                                        type="password"
+                                                        placeholder="Temporary Password"
+                                                        value={newStaffPassword}
+                                                        onChange={(e) => setNewStaffPassword(e.target.value)}
+                                                    />
+                                                )}
+                                            </div>
+                                            <div className="form-actions">
+                                                <button className="add-staff-btn" onClick={handleAddStaff} disabled={staffLoading}>
+                                                    {staffLoading ? "Processing..." : (editIndex !== null ? "Save Changes" : "Add Staff")}
+                                                </button>
+                                                <button className="cancel-btn" onClick={handleCancelForm} disabled={staffLoading}>Cancel</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!showAddForm && (
+                                        <button className="add-staff-btn" onClick={() => setShowAddForm(true)}>+ Add Staff</button>
+                                    )}
                                 </section>
-                            ) : (
+                            ) : adminView === "upload_certificate" ? (
                                 <section className="admin-upload-section" style={{ backgroundColor: "white", borderRadius: "16px", padding: "24px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)" }}>
                                     <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#1e293b" }}>Upload Certificate</h3>
                                     <div className="upload-form-card" style={{ maxWidth: "500px" }}>
                                         <p style={{ color: "#64748b", margin: "4px 0 16px 0", fontSize: "14px" }}>Upload food quality or safety certificates here.</p>
                                         {uploadState.error && <div style={{ color: "red", marginBottom: "10px", fontSize: "14px", padding: "10px", backgroundColor: "#fef2f2", borderRadius: "6px" }}>{uploadState.error}</div>}
                                         {uploadState.success && <div style={{ color: "green", marginBottom: "10px", fontSize: "14px", padding: "10px", backgroundColor: "#f0fdf4", borderRadius: "6px" }}>{uploadState.success}</div>}
-                                        
+
                                         <div className="form-group" style={{ marginBottom: "20px" }}>
                                             <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#334155" }}>Certificate File</label>
                                             <input
@@ -573,9 +733,9 @@ function Dashboard({ user, onLogout }) {
                                                 style={{ width: "100%", padding: "12px", border: "1px dashed #cbd5e1", borderRadius: "8px", backgroundColor: "#f8fafc", cursor: "pointer" }}
                                             />
                                         </div>
-                                        <button 
-                                            className="upload-submit-btn" 
-                                            onClick={handleUploadCertificate} 
+                                        <button
+                                            className="upload-submit-btn"
+                                            onClick={handleUploadCertificate}
                                             disabled={uploadState.loading}
                                             style={{ backgroundColor: "#3b82f6", color: "white", padding: "12px 24px", border: "none", borderRadius: "8px", cursor: uploadState.loading ? "not-allowed" : "pointer", fontWeight: "600", width: "100%", transition: "background-color 0.2s" }}
                                             onMouseOver={(e) => !uploadState.loading && (e.currentTarget.style.backgroundColor = "#2563eb")}
@@ -585,7 +745,70 @@ function Dashboard({ user, onLogout }) {
                                         </button>
                                     </div>
                                 </section>
-                            )}
+                            ) : adminView === "view_grievances" ? (
+                                <section className="admin-table-section">
+                                    <h3>Grievance Management</h3>
+                                    <p style={{ color: "#64748b", margin: "-12px 0 24px 0", fontSize: "14px" }}>Review complaints submitted by students and faculty.</p>
+
+                                    {grievanceLoading && (
+                                        <div className="cert-loading">Loading grievances...</div>
+                                    )}
+
+                                    {grievanceError && (
+                                        <div className="cert-error">{grievanceError}</div>
+                                    )}
+
+                                    {!grievanceLoading && !grievanceError && grievances.length === 0 && (
+                                        <div className="cert-empty">
+                                            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                            </svg>
+                                            <p>No grievances submitted yet.</p>
+                                        </div>
+                                    )}
+
+                                    {!grievanceLoading && !grievanceError && grievances.length > 0 && (
+                                        <div className="grievance-list">
+                                            {grievances.map((g) => {
+                                                const catClass = g.category.toLowerCase().split(' ').join('-');
+                                                return (
+                                                <div key={g.id} className="grievance-card">
+                                                    <div className="grievance-card-header">
+                                                        <span className={`grievance-category-badge gc-${catClass}`}>{g.category}</span>
+                                                        <span className={`grievance-status-badge gs-${g.status.toLowerCase()}`}>{g.status}</span>
+                                                    </div>
+                                                    <p className="grievance-card-details">{g.details}</p>
+                                                    <div className="grievance-card-footer">
+                                                        <div className="grievance-submitter">
+                                                            {g.is_anonymous ? (
+                                                                <span className="grievance-anonymous-tag">🔒 Anonymous</span>
+                                                            ) : (
+                                                                <span className="grievance-user-tag">👤 {g.submitted_by_name} ({g.submitted_by_role}) — {g.submitted_by_username}</span>
+                                                            )}
+                                                        </div>
+                                                        <span className="grievance-date">
+                                                            {new Date(g.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grievance-card-actions">
+                                                        {g.status !== "Resolved" ? (
+                                                            <button className="grievance-resolve-btn" onClick={() => handleUpdateGrievanceStatus(g.id, "Resolved")}>
+                                                                ✅ Mark Resolved
+                                                            </button>
+                                                        ) : (
+                                                            <button className="grievance-reopen-btn" onClick={() => handleUpdateGrievanceStatus(g.id, "Pending")}>
+                                                                🔄 Reopen
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </section>
+                            ) : null}
                         </>
                     ) : isCanteenStaff ? (
                         /* ─── Canteen Staff Dashboard ─── */
@@ -808,7 +1031,7 @@ function Dashboard({ user, onLogout }) {
                                     <div className="action-info">
                                         <h3>Dashboard</h3>
                                         <p>Access your complete dashboard to book meals, view orders, and manage your bookings</p>
-                                        <button className="action-btn">
+                                        <button className="action-btn" onClick={() => setView("student_dashboard")}>
                                             Go to Dashboard <span>→</span>
                                         </button>
                                     </div>
@@ -831,6 +1054,192 @@ function Dashboard({ user, onLogout }) {
                             </section>
                         </>
                     )
+                ) : view === "student_dashboard" ? (
+                    /* ─── Student / Faculty Dashboard Detail View ─── */
+                    <>
+                        <div className="std-back-row">
+                            <button className="back-btn" onClick={() => setView("dashboard")}>
+                                <span>←</span> Back to Home
+                            </button>
+                        </div>
+                        <section className="std-dashboard-welcome">
+                            <h2>Welcome back, {user.name}!</h2>
+                            <p>Here's what's happening with your food bookings today</p>
+                        </section>
+
+                        {/* My Orders Card */}
+                        <section className="std-stats-row">
+                            <div className="std-stat-card">
+                                <div className="std-stat-info">
+                                    <p className="std-stat-label">My Orders</p>
+                                    <p className="std-stat-value">{orderCount}</p>
+                                </div>
+                                <div className="std-stat-icon">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                                    </svg>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Quick Actions */}
+                        <section className="std-quick-actions">
+                            <h3 className="std-section-title">Quick Actions</h3>
+                            <div className="std-actions-grid">
+                                <button className="std-action-tile grievance-tile" onClick={handleOpenGrievanceModal}>
+                                    <div className="std-tile-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                        </svg>
+                                    </div>
+                                    <span>Grievances</span>
+                                </button>
+
+                                <button className="std-action-tile tokens-tile" onClick={() => { setView("certificate"); fetchCertificates(); }}>
+                                    <div className="std-tile-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                                            <line x1="3" y1="15" x2="21" y2="15"></line>
+                                        </svg>
+                                    </div>
+                                    <span>Certificate</span>
+                                </button>
+
+                                <button className="std-action-tile staff-tile" onClick={() => { setView("staff_panel"); fetchStaffPanel(); }}>
+                                    <div className="std-tile-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                        </svg>
+                                    </div>
+                                    <span>Staff Panel</span>
+                                </button>
+                            </div>
+                        </section>
+                    </>
+                ) : view === "staff_panel" ? (
+                    /* ─── Staff Panel View ─── */
+                    <section className="staff-panel-section">
+                        <div className="cert-view-header">
+                            <button className="back-btn" onClick={() => setView("student_dashboard")}>
+                                <span>←</span> Back
+                            </button>
+                            <h2>Canteen Staff</h2>
+                            <p>Staff members managing the canteen.</p>
+                        </div>
+
+                        {staffPanelLoading && (
+                            <div className="cert-loading">Loading staff...</div>
+                        )}
+
+                        {staffPanelError && (
+                            <div className="cert-error">{staffPanelError}</div>
+                        )}
+
+                        {!staffPanelLoading && !staffPanelError && staffPanel.length === 0 && (
+                            <div className="cert-empty">
+                                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                </svg>
+                                <p>No staff added yet.</p>
+                            </div>
+                        )}
+
+                        <div className="sp-grid">
+                            {staffPanel.map((s) => (
+                                <div key={s.id} className="sp-card">
+                                    <div className="sp-avatar">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div className="sp-info">
+                                        <p className="sp-name">{s.name}</p>
+                                        <p className="sp-email">{s.email}</p>
+                                    </div>
+                                    <span className="sp-role-badge">Canteen Staff</span>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                ) : view === "certificate" ? (
+                    /* ─── Certificate View ─── */
+                    <section className="cert-view-section">
+                        <div className="cert-view-header">
+                            <button className="back-btn" onClick={() => setView("student_dashboard")}>
+                                <span>←</span> Back
+                            </button>
+                            <h2>Food Certificates</h2>
+                            <p>Certificates uploaded by the admin for food quality &amp; safety.</p>
+                        </div>
+
+                        {certLoading && (
+                            <div className="cert-loading">Loading certificates...</div>
+                        )}
+
+                        {certError && (
+                            <div className="cert-error">{certError}</div>
+                        )}
+
+                        {!certLoading && !certError && certificates.length === 0 && (
+                            <div className="cert-empty">
+                                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                <p>No certificates uploaded yet.</p>
+                            </div>
+                        )}
+
+                        <div className="cert-grid">
+                            {certificates.map((cert) => {
+                                const isPdf = cert.file_url && cert.file_url.toLowerCase().endsWith(".pdf");
+                                const uploadDate = cert.uploaded_at
+                                    ? new Date(cert.uploaded_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+                                    : "";
+                                return (
+                                    <div key={cert.id} className="cert-card">
+                                        <div className="cert-card-preview">
+                                            {isPdf ? (
+                                                <div className="cert-pdf-icon">
+                                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                                    </svg>
+                                                    <span>PDF</span>
+                                                </div>
+                                            ) : (
+                                                <img src={cert.file_url} alt={cert.file_name} className="cert-image" />
+                                            )}
+                                        </div>
+                                        <div className="cert-card-info">
+                                            <p className="cert-card-name">{cert.file_name}</p>
+                                            {uploadDate && <p className="cert-card-date">Uploaded: {uploadDate}</p>}
+                                            <a
+                                                href={cert.file_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="cert-view-btn"
+                                            >
+                                                View
+                                            </a>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
                 ) : view === "menu" ? (
                     <Menu
                         onBack={() => setView("dashboard")}
@@ -898,6 +1307,76 @@ function Dashboard({ user, onLogout }) {
                     </section>
                 )}
             </main>
+
+            {/* ─── Grievance Submission Modal ─── */}
+            {showGrievanceModal && (
+                <div className="grievance-modal-overlay" onClick={handleCloseGrievanceModal}>
+                    <div className="grievance-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="grievance-modal-header">
+                            <h2>Submit Grievance</h2>
+                            <button className="grievance-modal-close" onClick={handleCloseGrievanceModal}>✕</button>
+                        </div>
+
+                        {grievanceSubmitState.error && (
+                            <div className="grievance-error-msg">{grievanceSubmitState.error}</div>
+                        )}
+                        {grievanceSubmitState.success && (
+                            <div className="grievance-success-msg">{grievanceSubmitState.success}</div>
+                        )}
+
+                        <div className="grievance-form-group">
+                            <label>Issue Category <span className="required-star">*</span></label>
+                            <select
+                                value={grievanceCategory}
+                                onChange={(e) => setGrievanceCategory(e.target.value)}
+                                className="grievance-select"
+                            >
+                                <option value="">Select a category</option>
+                                {grievanceCategories.map((cat) => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="grievance-form-group">
+                            <label>Complaint Details <span className="required-star">*</span></label>
+                            <textarea
+                                className="grievance-textarea"
+                                placeholder="Please describe your complaint in detail..."
+                                value={grievanceDetails}
+                                onChange={(e) => { if (e.target.value.length <= 500) setGrievanceDetails(e.target.value); }}
+                                maxLength={500}
+                                rows={5}
+                            />
+                            <span className="grievance-char-count">{grievanceDetails.length}/500 characters</span>
+                        </div>
+
+                        <div className="grievance-anonymous-row">
+                            <label className="grievance-checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={grievanceAnonymous}
+                                    onChange={(e) => setGrievanceAnonymous(e.target.checked)}
+                                    className="grievance-checkbox"
+                                />
+                                <span className="grievance-checkbox-custom"></span>
+                                <div>
+                                    <strong>Submit anonymously (hide my identity)</strong>
+                                    <p>Your complaint will be processed without revealing your personal information</p>
+                                </div>
+                            </label>
+                        </div>
+
+                        <button
+                            className="grievance-submit-btn"
+                            onClick={handleSubmitGrievance}
+                            disabled={grievanceSubmitState.loading}
+                        >
+                            {grievanceSubmitState.loading ? "Submitting..." : "Submit Complaint"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
