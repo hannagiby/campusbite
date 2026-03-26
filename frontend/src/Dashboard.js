@@ -294,6 +294,7 @@ function Dashboard({ user, onLogout }) {
                 setCertificateFile(null);
                 const fileInput = document.getElementById("certificateInput");
                 if (fileInput) fileInput.value = "";
+                fetchCertificates();
                 setTimeout(() => setUploadState({ loading: false, error: "", success: "" }), 3000);
             } else {
                 setUploadState({ loading: false, error: data.message || "Upload failed", success: "" });
@@ -618,7 +619,7 @@ function Dashboard({ user, onLogout }) {
                                     </svg>
                                     <span>Grievance Management</span>
                                 </button>
-                                <button className={`admin-action-btn upload-btn ${adminView === "upload_certificate" ? "active" : ""}`} onClick={() => setAdminView("upload_certificate")}>
+                                <button className={`admin-action-btn upload-btn ${adminView === "upload_certificate" ? "active" : ""}`} onClick={() => { setAdminView("upload_certificate"); fetchCertificates(); }}>
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                         <polyline points="17 8 12 3 7 8"></polyline>
@@ -719,7 +720,7 @@ function Dashboard({ user, onLogout }) {
                             ) : adminView === "upload_certificate" ? (
                                 <section className="admin-upload-section" style={{ backgroundColor: "white", borderRadius: "16px", padding: "24px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)" }}>
                                     <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#1e293b" }}>Upload Certificate</h3>
-                                    <div className="upload-form-card" style={{ maxWidth: "500px" }}>
+                                    <div className="upload-form-card" style={{ maxWidth: "500px", marginBottom: "32px" }}>
                                         <p style={{ color: "#64748b", margin: "4px 0 16px 0", fontSize: "14px" }}>Upload food quality or safety certificates here.</p>
                                         {uploadState.error && <div style={{ color: "red", marginBottom: "10px", fontSize: "14px", padding: "10px", backgroundColor: "#fef2f2", borderRadius: "6px" }}>{uploadState.error}</div>}
                                         {uploadState.success && <div style={{ color: "green", marginBottom: "10px", fontSize: "14px", padding: "10px", backgroundColor: "#f0fdf4", borderRadius: "6px" }}>{uploadState.success}</div>}
@@ -744,6 +745,53 @@ function Dashboard({ user, onLogout }) {
                                             {uploadState.loading ? "Uploading..." : "Upload Certificate"}
                                         </button>
                                     </div>
+                                    
+                                    <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#1e293b", borderTop: "1px solid #e2e8f0", paddingTop: "24px" }}>Uploaded Certificates</h3>
+                                    
+                                    {certLoading && <div style={{ color: "#64748b" }}>Loading certificates...</div>}
+                                    {certError && <div style={{ color: "red" }}>{certError}</div>}
+                                    
+                                    {!certLoading && !certError && certificates.length === 0 && (
+                                        <div style={{ color: "#64748b", padding: "16px", backgroundColor: "#f8fafc", borderRadius: "8px", textAlign: "center" }}>
+                                            No certificates uploaded yet.
+                                        </div>
+                                    )}
+                                    
+                                    {!certLoading && !certError && certificates.length > 0 && (
+                                        <div className="certificates-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
+                                            {certificates.map((cert) => (
+                                                <div key={cert.id} className="certificate-card" style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between", backgroundColor: "#fff" }}>
+                                                    <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "16px" }}>
+                                                        <div style={{ backgroundColor: "#eff6ff", padding: "10px", borderRadius: "8px", marginRight: "12px" }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                                <polyline points="10 9 9 9 8 9"></polyline>
+                                                            </svg>
+                                                        </div>
+                                                        <div style={{ overflow: "hidden", flex: 1 }}>
+                                                            <p style={{ margin: "0 0 4px 0", fontWeight: "600", fontSize: "14px", color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={cert.file_name}>{cert.file_name}</p>
+                                                            <p style={{ margin: "0", fontSize: "12px", color: "#64748b" }}>
+                                                                Uploaded: {new Date(cert.uploaded_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <a
+                                                        href={cert.file_url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{ display: "block", textAlign: "center", backgroundColor: "#f1f5f9", color: "#475569", padding: "8px 16px", borderRadius: "6px", textDecoration: "none", fontWeight: "500", fontSize: "14px", transition: "all 0.2s", border: "1px solid #e2e8f0" }}
+                                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = "#e2e8f0"; e.currentTarget.style.color = "#1e293b"; }}
+                                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; e.currentTarget.style.color = "#475569"; }}
+                                                    >
+                                                        Preview
+                                                    </a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </section>
                             ) : adminView === "view_grievances" ? (
                                 <section className="admin-table-section">
