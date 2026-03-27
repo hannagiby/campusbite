@@ -15,10 +15,26 @@ function Dashboard({ user, onLogout }) {
     const [grievanceDetails, setGrievanceDetails] = useState("");
     const [grievanceAnonymous, setGrievanceAnonymous] = useState(true);
     const [grievanceSubmitState, setGrievanceSubmitState] = useState({ loading: false, error: "", success: "" });
+    const [grievanceImages, setGrievanceImages] = useState([]);
+
+    // User Grievances View State
+    const [showUserGrievancesModal, setShowUserGrievancesModal] = useState(false);
+    const [userGrievances, setUserGrievances] = useState([]);
+    const [userGrievanceFilter, setUserGrievanceFilter] = useState("All"); // "All", "Pending", "Resolved"
+    const [userGrievanceLoading, setUserGrievanceLoading] = useState(false);
+    
+    // Grievance Notifications State
+    const [notificationToast, setNotificationToast] = useState(null);
+
     // Admin grievance view state
     const [grievances, setGrievances] = useState([]);
     const [grievanceLoading, setGrievanceLoading] = useState(false);
     const [grievanceError, setGrievanceError] = useState("");
+    
+    // Admin Resolve Grievance State
+    const [showResolveModal, setShowResolveModal] = useState(false);
+    const [resolveGrievanceId, setResolveGrievanceId] = useState(null);
+    const [resolveMessage, setResolveMessage] = useState("");
     const [selectedItem, setSelectedItem] = useState(null);
     const [cart, setCart] = useState([]);
     const [orderCount, setOrderCount] = useState(0);
@@ -69,7 +85,45 @@ function Dashboard({ user, onLogout }) {
         if (isCanteenStaff) {
             fetchCategories();
         }
-    }, [isAdmin, isCanteenStaff]);
+        
+        // Notifications check for normal users
+        if (!isAdmin && !isCanteenStaff && user && user.username) {
+            checkGrievanceNotifications();
+        }
+    }, [isAdmin, isCanteenStaff, user]);
+
+    const checkGrievanceNotifications = async () => {
+        try {
+            const res = await fetch(`http://localhost:5000/api/grievances/unnotified/${user.username}`);
+            const data = await res.json();
+            
+            if (res.ok && data.grievances && data.grievances.length > 0) {
+                // Show notification toast for the first one, or a summary
+                const count = data.grievances.length;
+                setNotificationToast({
+                    title: "Grievance Resolved",
+                    message: count === 1 
+                        ? "Your grievance has been resolved." 
+                        : `${count} of your grievances have been resolved.`
+                });
+
+                // Auto hide after 5 seconds
+                setTimeout(() => {
+                    setNotificationToast(null);
+                }, 5000);
+
+                // Mark them as notified so they don't appear again
+                const grievanceIds = data.grievances.map(g => g.id);
+                await fetch("http://localhost:5000/api/grievances/mark-notified", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ grievanceIds })
+                });
+            }
+        } catch (err) {
+            console.error("Failed to fetch notifications:", err);
+        }
+    };
 
     const fetchCategories = async () => {
         try {
@@ -308,14 +362,28 @@ function Dashboard({ user, onLogout }) {
     const getDepartment = (username) => {
         if (!username) return "Unknown";
         if (isAdmin) return "Administration";
-        const deptCode = username.substring(2, 4).toLowerCase();
+        
+        // Extract the letters part from the username (e.g., 23cs113 -> cs, 23mca12 -> mca)
+        const match = username.match(/[a-zA-Z]+/);
+        const deptCode = match ? match[0].toLowerCase() : "";
+
         const deptMap = {
             cs: "Computer Science",
-            me: "Mechanical Engineering",
+            cse: "Computer Science",
+            me: "Mechanical",
+            mec: "Mechanical",
             ec: "Electronics & Communication",
+            ecs: "Electronics and Communication",
             ce: "Civil Engineering",
+            cev: "Civil",
             ee: "Electrical Engineering",
-            it: "Information Technology",
+            eee: "Electrical",
+            mc: "Computer Application",
+            mca: "Computer Application",
+            ad: "Artificial Intelligence and Data Science",
+            add: "Artificial Intelligence and Data Science",
+            cy: "Cyber Security",
+            cys: "Cyber Security",
         };
         return deptMap[deptCode] || "General Department";
     };
@@ -379,11 +447,28 @@ function Dashboard({ user, onLogout }) {
         setGrievanceDetails("");
         setGrievanceAnonymous(true);
         setGrievanceSubmitState({ loading: false, error: "", success: "" });
+        setGrievanceImages([]);
         setShowGrievanceModal(true);
     };
 
     const handleCloseGrievanceModal = () => {
         setShowGrievanceModal(false);
+    };
+
+    const handleGrievanceImageChange = (e) => {
+        const files = Array.from(e.target.files);
+        const total = grievanceImages.length + files.length;
+        if (total > 5) {
+            setGrievanceSubmitState({ loading: false, error: "You can attach a maximum of 5 photos.", success: "" });
+            return;
+        }
+        setGrievanceImages(prev => [...prev, ...files]);
+        // Reset file input so the same file can be selected again
+        e.target.value = "";
+    };
+
+    const handleRemoveGrievanceImage = (index) => {
+        setGrievanceImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmitGrievance = async () => {
@@ -398,20 +483,23 @@ function Dashboard({ user, onLogout }) {
 
         setGrievanceSubmitState({ loading: true, error: "", success: "" });
         try {
+            const formData = new FormData();
+            formData.append("category", grievanceCategory);
+            formData.append("details", grievanceDetails.trim());
+            formData.append("isAnonymous", grievanceAnonymous);
+            formData.append("user", JSON.stringify({
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }));
+            grievanceImages.forEach((file) => {
+                formData.append("images", file);
+            });
+
             const res = await fetch("http://localhost:5000/api/grievances", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    category: grievanceCategory,
-                    details: grievanceDetails.trim(),
-                    isAnonymous: grievanceAnonymous,
-                    user: {
-                        name: user.name,
-                        username: user.username,
-                        email: user.email,
-                        role: user.role
-                    }
-                })
+                body: formData
             });
             const data = await res.json();
             if (res.ok) {
@@ -444,22 +532,71 @@ function Dashboard({ user, onLogout }) {
         setGrievanceLoading(false);
     };
 
-    const handleUpdateGrievanceStatus = async (id, newStatus) => {
+    const fetchUserGrievances = async () => {
+        if (!user || !user.username) return;
+        setUserGrievanceLoading(true);
         try {
+            const res = await fetch(`http://localhost:5000/api/grievances/user/${user.username}`);
+            const data = await res.json();
+            if (res.ok) {
+                setUserGrievances(data.grievances || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch user grievances");
+        }
+        setUserGrievanceLoading(false);
+    };
+
+    const handleOpenUserGrievances = () => {
+        setShowGrievanceModal(false);
+        setUserGrievanceFilter("All");
+        fetchUserGrievances();
+        setShowUserGrievancesModal(true);
+    };
+
+    const handleUpdateGrievanceStatus = async (id, newStatus, isAnonymous = true) => {
+        if (newStatus === "Resolved" && !isAnonymous) {
+            setResolveGrievanceId(id);
+            setResolveMessage("");
+            setShowResolveModal(true);
+            return;
+        }
+        await processGrievanceUpdate(id, newStatus, "");
+    };
+
+    const processGrievanceUpdate = async (id, newStatus, adminMessage) => {
+        try {
+            const body = { status: newStatus };
+            if (adminMessage !== undefined && adminMessage !== "") {
+                body.adminMessage = adminMessage;
+            }
+
             const res = await fetch(`http://localhost:5000/api/grievances/${id}/status`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: newStatus })
+                body: JSON.stringify(body)
             });
             const data = await res.json();
             if (res.ok) {
-                setGrievances(grievances.map(g => g.id === id ? { ...g, status: newStatus } : g));
+                setGrievances(prev => prev.map(g => g.id === id ? { 
+                    ...g, 
+                    status: newStatus, 
+                    admin_message: adminMessage || g.admin_message 
+                } : g));
             } else {
                 alert(data.message || "Failed to update status.");
             }
         } catch (err) {
             alert("Server error. Could not update status.");
         }
+    };
+
+    const handleConfirmResolve = async () => {
+        if (!resolveGrievanceId) return;
+        await processGrievanceUpdate(resolveGrievanceId, "Resolved", resolveMessage);
+        setShowResolveModal(false);
+        setResolveGrievanceId(null);
+        setResolveMessage("");
     };
 
     const handleConfirmOrder = async (item, quantity, totalTokens) => {
@@ -531,6 +668,56 @@ function Dashboard({ user, onLogout }) {
 
     return (
         <div className="dashboard-page">
+            {/* Notification Toast */}
+            {notificationToast && (
+                <div className="notification-toast bounce-in">
+                    <div className="toast-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                    </div>
+                    <div className="toast-content">
+                        <h4>{notificationToast.title}</h4>
+                        <p>{notificationToast.message}</p>
+                    </div>
+                    <button className="toast-close" onClick={() => setNotificationToast(null)}>✕</button>
+                </div>
+            )}
+
+            {/* Admin Resolve Grievance Modal */}
+            {showResolveModal && (
+                <div className="grievance-modal-overlay" onClick={() => setShowResolveModal(false)}>
+                    <div className="grievance-modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="grievance-modal-header">
+                            <h2>Resolve Grievance</h2>
+                            <button className="grievance-modal-close" onClick={() => setShowResolveModal(false)}>✕</button>
+                        </div>
+                        <div className="grievance-modal-content" style={{ marginTop: '16px' }}>
+                            <div className="canteen-form-group">
+                                <label>Admin Message / Reply (Optional)</label>
+                                <textarea 
+                                    placeholder="e.g. Issue has been fixed. Kitchen cleaned."
+                                    value={resolveMessage}
+                                    onChange={(e) => setResolveMessage(e.target.value)}
+                                    rows="4"
+                                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', resize: 'vertical', marginTop: '8px', fontFamily: 'inherit' }}
+                                />
+                                <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>This message will be visible to the student/faculty.</p>
+                            </div>
+                            <div className="grievance-modal-actions">
+                                <button className="grievance-submit-btn" onClick={handleConfirmResolve}>
+                                    Confirm Resolution
+                                </button>
+                                <button className="grievance-back-btn" onClick={() => setShowResolveModal(false)}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Dashboard Top Header */}
             <header className="dashboard-header">
                 <div className="header-left">
@@ -745,18 +932,18 @@ function Dashboard({ user, onLogout }) {
                                             {uploadState.loading ? "Uploading..." : "Upload Certificate"}
                                         </button>
                                     </div>
-                                    
+
                                     <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#1e293b", borderTop: "1px solid #e2e8f0", paddingTop: "24px" }}>Uploaded Certificates</h3>
-                                    
+
                                     {certLoading && <div style={{ color: "#64748b" }}>Loading certificates...</div>}
                                     {certError && <div style={{ color: "red" }}>{certError}</div>}
-                                    
+
                                     {!certLoading && !certError && certificates.length === 0 && (
                                         <div style={{ color: "#64748b", padding: "16px", backgroundColor: "#f8fafc", borderRadius: "8px", textAlign: "center" }}>
                                             No certificates uploaded yet.
                                         </div>
                                     )}
-                                    
+
                                     {!certLoading && !certError && certificates.length > 0 && (
                                         <div className="certificates-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
                                             {certificates.map((cert) => (
@@ -821,36 +1008,45 @@ function Dashboard({ user, onLogout }) {
                                             {grievances.map((g) => {
                                                 const catClass = g.category.toLowerCase().split(' ').join('-');
                                                 return (
-                                                <div key={g.id} className="grievance-card">
-                                                    <div className="grievance-card-header">
-                                                        <span className={`grievance-category-badge gc-${catClass}`}>{g.category}</span>
-                                                        <span className={`grievance-status-badge gs-${g.status.toLowerCase()}`}>{g.status}</span>
-                                                    </div>
-                                                    <p className="grievance-card-details">{g.details}</p>
-                                                    <div className="grievance-card-footer">
-                                                        <div className="grievance-submitter">
-                                                            {g.is_anonymous ? (
-                                                                <span className="grievance-anonymous-tag">🔒 Anonymous</span>
+                                                    <div key={g.id} className="grievance-card">
+                                                        <div className="grievance-card-header">
+                                                            <span className={`grievance-category-badge gc-${catClass}`}>{g.category}</span>
+                                                            <span className={`grievance-status-badge gs-${g.status.toLowerCase()}`}>{g.status}</span>
+                                                        </div>
+                                                        <p className="grievance-card-details">{g.details}</p>
+                                                        {g.image_urls && g.image_urls.length > 0 && (
+                                                            <div className="grievance-images-gallery">
+                                                                {g.image_urls.map((url, idx) => (
+                                                                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="grievance-gallery-thumb">
+                                                                        <img src={url} alt={`Grievance attachment ${idx + 1}`} />
+                                                                    </a>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <div className="grievance-card-footer">
+                                                            <div className="grievance-submitter">
+                                                                {g.is_anonymous ? (
+                                                                    <span className="grievance-anonymous-tag">🔒 Anonymous</span>
+                                                                ) : (
+                                                                    <span className="grievance-user-tag">👤 {g.submitted_by_name} ({g.submitted_by_role}) — {g.submitted_by_username}</span>
+                                                                )}
+                                                            </div>
+                                                            <span className="grievance-date">
+                                                                {new Date(g.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="grievance-card-actions">
+                                                            {g.status !== "Resolved" ? (
+                                                                <button className="grievance-resolve-btn" onClick={() => handleUpdateGrievanceStatus(g.id, "Resolved", g.is_anonymous)}>
+                                                                    ✅ Mark Resolved
+                                                                </button>
                                                             ) : (
-                                                                <span className="grievance-user-tag">👤 {g.submitted_by_name} ({g.submitted_by_role}) — {g.submitted_by_username}</span>
+                                                                <button className="grievance-reopen-btn" onClick={() => handleUpdateGrievanceStatus(g.id, "Pending")}>
+                                                                    🔄 Reopen
+                                                                </button>
                                                             )}
                                                         </div>
-                                                        <span className="grievance-date">
-                                                            {new Date(g.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                                        </span>
                                                     </div>
-                                                    <div className="grievance-card-actions">
-                                                        {g.status !== "Resolved" ? (
-                                                            <button className="grievance-resolve-btn" onClick={() => handleUpdateGrievanceStatus(g.id, "Resolved")}>
-                                                                ✅ Mark Resolved
-                                                            </button>
-                                                        ) : (
-                                                            <button className="grievance-reopen-btn" onClick={() => handleUpdateGrievanceStatus(g.id, "Pending")}>
-                                                                🔄 Reopen
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
                                                 );
                                             })}
                                         </div>
@@ -1399,6 +1595,38 @@ function Dashboard({ user, onLogout }) {
                             <span className="grievance-char-count">{grievanceDetails.length}/500 characters</span>
                         </div>
 
+                        <div className="grievance-form-group">
+                            <label>Attach Photos <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 400 }}>(optional, max 5)</span></label>
+                            <div className="grievance-photo-upload">
+                                <label className="grievance-photo-upload-btn" htmlFor="grievanceImageInput">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                    <span>Choose Photos</span>
+                                </label>
+                                <input
+                                    id="grievanceImageInput"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleGrievanceImageChange}
+                                    style={{ display: 'none' }}
+                                />
+                            </div>
+                            {grievanceImages.length > 0 && (
+                                <div className="grievance-preview-strip">
+                                    {grievanceImages.map((file, idx) => (
+                                        <div key={idx} className="grievance-preview-thumb">
+                                            <img src={URL.createObjectURL(file)} alt={`Preview ${idx + 1}`} />
+                                            <button className="grievance-preview-remove" onClick={() => handleRemoveGrievanceImage(idx)} type="button">✕</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         <div className="grievance-anonymous-row">
                             <label className="grievance-checkbox-label">
                                 <input
@@ -1415,13 +1643,121 @@ function Dashboard({ user, onLogout }) {
                             </label>
                         </div>
 
-                        <button
-                            className="grievance-submit-btn"
-                            onClick={handleSubmitGrievance}
-                            disabled={grievanceSubmitState.loading}
-                        >
-                            {grievanceSubmitState.loading ? "Submitting..." : "Submit Complaint"}
-                        </button>
+                        <div className="grievance-modal-actions">
+                            <button
+                                className="grievance-submit-btn"
+                                onClick={handleSubmitGrievance}
+                                disabled={grievanceSubmitState.loading}
+                            >
+                                {grievanceSubmitState.loading ? "Submitting..." : "Submit Complaint"}
+                            </button>
+                            <button
+                                className="grievance-view-btn"
+                                onClick={handleOpenUserGrievances}
+                            >
+                                View My Grievances
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── My Grievances Modal ─── */}
+            {showUserGrievancesModal && (
+                <div className="grievance-modal-overlay" onClick={() => setShowUserGrievancesModal(false)}>
+                    <div className="grievance-modal my-grievances-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="grievance-modal-header">
+                            <h2>My Grievances</h2>
+                            <button className="grievance-modal-close" onClick={() => setShowUserGrievancesModal(false)}>✕</button>
+                        </div>
+
+                        <div className="grievance-filter-tabs">
+                            <button
+                                className={`grievance-filter-tab ${userGrievanceFilter === "All" ? "active" : ""}`}
+                                onClick={() => setUserGrievanceFilter("All")}
+                            >
+                                All
+                            </button>
+                            <button
+                                className={`grievance-filter-tab ${userGrievanceFilter === "Pending" ? "active" : ""}`}
+                                onClick={() => setUserGrievanceFilter("Pending")}
+                            >
+                                Pending
+                            </button>
+                            <button
+                                className={`grievance-filter-tab ${userGrievanceFilter === "Resolved" ? "active" : ""}`}
+                                onClick={() => setUserGrievanceFilter("Resolved")}
+                            >
+                                Resolved
+                            </button>
+                        </div>
+
+                        <div className="user-grievance-list">
+                            {userGrievanceLoading ? (
+                                <div className="user-grievance-empty">Loading your grievances...</div>
+                            ) : (
+                                (() => {
+                                    const filtered = userGrievances.filter(g =>
+                                        userGrievanceFilter === "All" || g.status === userGrievanceFilter
+                                    );
+
+                                    if (filtered.length === 0) {
+                                        return (
+                                            <div className="user-grievance-empty">
+                                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                    <circle cx="12" cy="13" r="3"></circle>
+                                                    <line x1="12" y1="16" x2="12" y2="20"></line>
+                                                </svg>
+                                                <p>You have not submitted any grievances yet.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return filtered.map(g => {
+                                        const catClass = g.category.toLowerCase().split(' ').join('-');
+                                        return (
+                                            <div key={g.id} className="user-grievance-card">
+                                                <div className="ug-card-header">
+                                                    <span className={`grievance-category-badge gc-${catClass}`}>{g.category}</span>
+                                                    <span className={`grievance-status-badge gs-${g.status.toLowerCase().replace(' ', '-')}`}>{g.status}</span>
+                                                </div>
+                                                <p className="ug-card-details">{g.details.substring(0, 100)}{g.details.length > 100 ? "..." : ""}</p>
+                                                <div className="ug-card-footer">
+                                                    <span className="ug-date">
+                                                        {new Date(g.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                                    </span>
+                                                    {g.image_urls && g.image_urls.length > 0 && (
+                                                        <span className="ug-attachment-tag">📎 {g.image_urls.length} Attachment{g.image_urls.length !== 1 && 's'}</span>
+                                                    )}
+                                                </div>
+                                                {g.admin_message && (
+                                                    <div className="ug-admin-response">
+                                                        <div className="ug-admin-response-title">Admin Response</div>
+                                                        <p>{g.admin_message}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    });
+                                })()
+                            )}
+                        </div>
+
+                        <div className="grievance-modal-actions mt-4">
+                            <button
+                                className="grievance-back-btn"
+                                onClick={() => {
+                                    setShowUserGrievancesModal(false);
+                                    setGrievanceCategory("");
+                                    setGrievanceDetails("");
+                                    setShowGrievanceModal(true);
+                                }}
+                            >
+                                ← Back to Submit
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
