@@ -20,6 +20,8 @@ const uploadRoutes = require("./routes/uploadRoutes");
 app.use("/api/upload", uploadRoutes);
 const grievanceRoutes = require("./routes/grievanceRoutes");
 app.use("/api/grievances", grievanceRoutes);
+const paymentRoutes = require("./routes/paymentRoutes");
+app.use("/api/payment", paymentRoutes);
 
 // Start server directly
 app.listen(PORT, () => {
