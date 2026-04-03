@@ -3,7 +3,7 @@ import axios from "axios";
 import Dashboard from "./Dashboard";
 import "./profile.css";
 
-function Profile({ onSwitchToRegister }) {
+function Profile({ onSwitchToRegister, onShowContact }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -33,8 +33,19 @@ function Profile({ onSwitchToRegister }) {
     setIsLoading(true);
     try {
       const res = await axios.get(`${API}/login`, { params: { username, password } });
-      setLoggedInUser(res.data.user);
-      showMessage(`Welcome, ${res.data.user.name}! (${res.data.user.role})`, "success");
+      const userData = res.data.user;
+
+      setLoggedInUser(userData);
+
+      if (rememberMe) {
+        localStorage.setItem("rememberMe", "true");
+        localStorage.setItem("campusBiteUser", JSON.stringify(userData));
+      } else {
+        localStorage.setItem("rememberMe", "false");
+        sessionStorage.setItem("campusBiteUser", JSON.stringify(userData));
+      }
+
+      showMessage(`Welcome, ${userData.name}! (${userData.role})`, "success");
     } catch (error) {
       const msg = error.response?.data?.message || "Login failed. Please try again.";
       showMessage(msg, "error");
@@ -53,8 +64,29 @@ function Profile({ onSwitchToRegister }) {
     setUsername("");
     setPassword("");
     setSelectedRole("");
+    localStorage.removeItem("rememberMe");
+    localStorage.removeItem("campusBiteUser");
+    sessionStorage.removeItem("campusBiteUser");
     showMessage("Logged out successfully", "success");
   };
+
+  // Check for existing session on mount
+  React.useEffect(() => {
+    const isRemembered = localStorage.getItem("rememberMe") === "true";
+    let storedUser = null;
+
+    if (isRemembered) {
+      const localUser = localStorage.getItem("campusBiteUser");
+      if (localUser) storedUser = JSON.parse(localUser);
+    } else {
+      const sessionUser = sessionStorage.getItem("campusBiteUser");
+      if (sessionUser) storedUser = JSON.parse(sessionUser);
+    }
+
+    if (storedUser) {
+      setLoggedInUser(storedUser);
+    }
+  }, []);
 
   // If logged in, show the personalized dashboard
   if (loggedInUser) {
@@ -159,9 +191,6 @@ function Profile({ onSwitchToRegister }) {
               />
               Remember me
             </label>
-            <a href="#forgot" className="forgot-password">
-              Forgot Password?
-            </a>
           </div>
 
           {/* Login Button */}
@@ -177,7 +206,7 @@ function Profile({ onSwitchToRegister }) {
         </p>
 
         <p className="footer-help">
-          Need help? <a href="#support">Contact Campus IT Support</a>
+          Need help? <span className="help-link" onClick={onShowContact}>Contact Campus IT Support</span>
         </p>
       </div>
     </div>

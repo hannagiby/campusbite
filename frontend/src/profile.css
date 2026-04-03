@@ -173,14 +173,14 @@
     cursor: pointer;
 }
 
-.forgot-password {
-    font-size: 14px;
+.help-link {
     color: #4f7c45;
-    text-decoration: none;
     font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
 }
 
-.forgot-password:hover {
+.help-link:hover {
     text-decoration: underline;
 }
 
