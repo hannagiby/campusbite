@@ -95,6 +95,7 @@ function Dashboard({ user, onLogout }) {
         // Notifications check for normal users
         if (!isAdmin && !isCanteenStaff && user && user.username) {
             checkGrievanceNotifications();
+            fetchBookings();
         }
     }, [isAdmin, isCanteenStaff, user]);
 
@@ -677,6 +678,7 @@ function Dashboard({ user, onLogout }) {
             if (res.ok) {
                 alert(`Successfully booked ${quantity}x ${item.food_name} for ${totalTokens} tokens!`);
                 setView("dashboard"); // Return to dashboard
+                fetchBookings();
             } else {
                 const data = await res.json();
                 alert(`Booking failed: ${data.message || "Could not complete order"}`);
@@ -714,6 +716,7 @@ function Dashboard({ user, onLogout }) {
     const handlePaymentSuccess = () => {
         setCart([]);
         setView("dashboard");
+        fetchBookings();
     };
 
     return (
@@ -806,7 +809,10 @@ function Dashboard({ user, onLogout }) {
                     </div>
                 </div>
 
-                <div className="header-right">
+                <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px" }} className="hide-on-mobile">
+                        Welcome, {user.name}
+                    </span>
                     <button className="header-profile-icon" onClick={() => setView("profile")} title="View Profile">
                         <div className="avatar-circle">
                             <span role="img" aria-label="user">{isAdmin ? "🛡️" : isCanteenStaff ? "🧑‍🍳" : user.role === "Faculty" ? "👨‍🏫" : "🎓"}</span>
@@ -1477,14 +1483,14 @@ function Dashboard({ user, onLogout }) {
                             </button>
                         </div>
                         <section className="std-dashboard-welcome">
-                            <h2>My Order History</h2>
+                            <h2>Welcome, {user.name}</h2>
                             <p>Track your tokens and previous meal bookings</p>
                         </section>
 
                         <section className="std-quick-actions" style={{ marginTop: "30px" }}>
                             <h3 className="std-section-title" style={{ fontSize: "18px", fontWeight: "700", color: "#1e293b", marginBottom: "16px" }}>Quick Actions</h3>
                             <div className="std-actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "16px" }}>
-                                <button className="std-action-tile grievance-tile" onClick={handleOpenGrievanceModal} style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
+                                <button className="std-action-tile grievance-tile" onClick={handleOpenGrievanceModal} style={{ background: "linear-gradient(135deg, #9ae6b4, #68d391)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
                                     <div className="std-tile-icon">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <circle cx="12" cy="12" r="10"></circle>
@@ -1495,7 +1501,7 @@ function Dashboard({ user, onLogout }) {
                                     <span style={{ fontWeight: "600", fontSize: "15px" }}>Grievances</span>
                                 </button>
 
-                                <button className="std-action-tile tokens-tile" onClick={() => { setView("certificate"); fetchCertificates(); }} style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
+                                <button className="std-action-tile tokens-tile" onClick={() => { setView("certificate"); fetchCertificates(); }} style={{ background: "linear-gradient(135deg, #9ae6b4, #68d391)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
                                     <div className="std-tile-icon">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <rect x="3" y="3" width="18" height="18" rx="2"></rect>
@@ -1506,7 +1512,7 @@ function Dashboard({ user, onLogout }) {
                                     <span style={{ fontWeight: "600", fontSize: "15px" }}>Certificate</span>
                                 </button>
 
-                                <button className="std-action-tile staff-tile" onClick={() => { setView("staff_panel"); fetchStaffPanel(); }} style={{ background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
+                                <button className="std-action-tile staff-tile" onClick={() => { setView("staff_panel"); fetchStaffPanel(); }} style={{ background: "linear-gradient(135deg, #9ae6b4, #68d391)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
                                     <div className="std-tile-icon">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>

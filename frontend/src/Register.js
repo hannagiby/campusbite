@@ -30,6 +30,11 @@ function Register({ onSwitchToLogin }) {
             return;
         }
 
+        if (!/^[a-zA-Z\s]+$/.test(name.trim())) {
+            showMsg("Full Name must contain only alphabetic characters", "error");
+            return;
+        }
+
         if (!selectedRole) {
             showMsg("Please select a role", "error");
             return;
@@ -119,7 +124,7 @@ function Register({ onSwitchToLogin }) {
                                 type="text"
                                 placeholder="Enter your full name"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s]/g, ""))}
                                 autoComplete="name"
                             />
                         </div>
