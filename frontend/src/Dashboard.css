@@ -1,6 +1,6 @@
 .dashboard-page {
     min-height: 100vh;
-    background-color: #f8fafc;
+    background-color: transparent;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     color: #1e293b;
 }
@@ -2275,6 +2275,7 @@
         transform: scale(0.8) translateX(100px);
         opacity: 0;
     }
+
     100% {
         transform: scale(1) translateX(0);
         opacity: 1;

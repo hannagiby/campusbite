@@ -3,6 +3,7 @@ import Menu from "./Menu";
 import ConfirmOrder from "./ConfirmOrder";
 import OutOfStock from "./OutOfStock";
 import Cart from "./Cart";
+import Payment from "./Payment";
 import "./Dashboard.css";
 
 function Dashboard({ user, onLogout }) {
@@ -74,6 +75,11 @@ function Dashboard({ user, onLogout }) {
     const [newCategoryImage, setNewCategoryImage] = useState(null);
     const [categorySaveState, setCategorySaveState] = useState({ loading: false, error: "", success: "" });
 
+    // Bookings / Orders state for staff panel
+    const [bookings, setBookings] = useState([]);
+    const [bookingsLoading, setBookingsLoading] = useState(false);
+    const [menuStock, setMenuStock] = useState([]);
+
     const isAdmin = (user.role || "").toLowerCase() === "admin";
     const isCanteenStaff = (user.role || "").toLowerCase() === "canteen";
 
@@ -122,6 +128,63 @@ function Dashboard({ user, onLogout }) {
             }
         } catch (err) {
             console.error("Failed to fetch notifications:", err);
+        }
+    };
+
+    // Poll bookings every 10 seconds when canteen staff is viewing bookings
+    useEffect(() => {
+        if (isCanteenStaff && canteenView === "view_bookings") {
+            fetchBookings();
+            fetchMenuStock();
+            const interval = setInterval(() => {
+                fetchBookings();
+                fetchMenuStock();
+            }, 10000);
+            return () => clearInterval(interval);
+        }
+    }, [isCanteenStaff, canteenView]);
+
+    const fetchBookings = async () => {
+        setBookingsLoading(true);
+        try {
+            const res = await fetch("http://localhost:5000/api/payment/orders");
+            const data = await res.json();
+            if (res.ok) {
+                setBookings(data.orders || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch bookings:", err);
+        }
+        setBookingsLoading(false);
+    };
+
+    const handleCompleteOrder = async (orderId) => {
+        try {
+            const res = await fetch(`http://localhost:5000/api/payment/orders/${orderId}/status`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "Completed" })
+            });
+            if (res.ok) {
+                fetchBookings(); // Refresh the list
+            } else {
+                alert("Failed to update order status");
+            }
+        } catch (err) {
+            console.error("Failed to update status", err);
+            alert("Error updating order status");
+        }
+    };
+
+    const fetchMenuStock = async () => {
+        try {
+            const res = await fetch("http://localhost:5000/api/menu");
+            const data = await res.json();
+            if (res.ok) {
+                setMenuStock(data.menuItems || []);
+            }
+        } catch (err) {
+            console.error("Failed to fetch menu stock:", err);
         }
     };
 
@@ -643,27 +706,14 @@ function Dashboard({ user, onLogout }) {
         setCart(newCart);
     };
 
-    const handleCheckoutCart = async () => {
+    const handleCheckoutCart = () => {
         if (cart.length === 0) return;
+        setView("payment");
+    };
 
-        try {
-            const res = await fetch("http://localhost:5000/api/menu/book-cart", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items: cart })
-            });
-
-            if (res.ok) {
-                alert("Successfully checked out all items!");
-                setCart([]);
-                setView("dashboard"); // Return to dashboard
-            } else {
-                const data = await res.json();
-                alert(`Checkout failed: ${data.message || "Could not complete order"}`);
-            }
-        } catch (err) {
-            alert("Error connecting to server to place order.");
-        }
+    const handlePaymentSuccess = () => {
+        setCart([]);
+        setView("dashboard");
     };
 
     return (
@@ -1223,8 +1273,128 @@ function Dashboard({ user, onLogout }) {
                                     </div>
                                 ) : (
                                     <div className="canteen-form-card">
-                                        <h3>View Bookings</h3>
-                                        <p style={{ color: "#64748b", margin: "16px 0" }}>No bookings available to view at the moment.</p>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                                            <h3 style={{ margin: 0 }}>Order Tracking</h3>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#16a34a", display: "inline-block", animation: "pulse 2s infinite" }}></span>
+                                                <span style={{ fontSize: "12px", color: "#64748b" }}>Live • Auto-refreshing</span>
+                                                <button onClick={() => { fetchBookings(); fetchMenuStock(); }} style={{ padding: "4px 12px", fontSize: "12px", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: "6px", cursor: "pointer" }}>↻ Refresh</button>
+                                            </div>
+                                        </div>
+
+                                        {/* Summary Row */}
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
+                                            <div style={{ background: "linear-gradient(135deg, #dbeafe, #eff6ff)", borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                                                <p style={{ margin: 0, fontSize: "12px", color: "#3b82f6", fontWeight: 600 }}>TOTAL ORDERS</p>
+                                                <p style={{ margin: "4px 0 0", fontSize: "28px", fontWeight: 800, color: "#1e40af" }}>{bookings.length}</p>
+                                            </div>
+                                            <div style={{ background: "linear-gradient(135deg, #dcfce7, #f0fdf4)", borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                                                <p style={{ margin: 0, fontSize: "12px", color: "#16a34a", fontWeight: 600 }}>REVENUE</p>
+                                                <p style={{ margin: "4px 0 0", fontSize: "28px", fontWeight: 800, color: "#15803d" }}>₹{bookings.reduce((s, o) => s + Number(o.total_amount || 0), 0)}</p>
+                                            </div>
+                                            <div style={{ background: "linear-gradient(135deg, #fef3c7, #fffbeb)", borderRadius: "12px", padding: "16px", textAlign: "center" }}>
+                                                <p style={{ margin: 0, fontSize: "12px", color: "#d97706", fontWeight: 600 }}>LAST TOKEN</p>
+                                                <p style={{ margin: "4px 0 0", fontSize: "28px", fontWeight: 800, color: "#92400e" }}>{bookings.length > 0 ? bookings[0].token_number : "—"}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Food Stock Section */}
+                                        <div style={{ marginBottom: "24px" }}>
+                                            <h4 style={{ margin: "0 0 12px", fontSize: "15px", color: "#1e293b" }}>📦 Food Stock Levels</h4>
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                                                {menuStock.map((item) => (
+                                                    <span key={item.id} style={{
+                                                        padding: "6px 14px",
+                                                        borderRadius: "20px",
+                                                        fontSize: "13px",
+                                                        fontWeight: 600,
+                                                        background: item.slots > 10 ? "#dcfce7" : item.slots > 0 ? "#fef3c7" : "#fee2e2",
+                                                        color: item.slots > 10 ? "#166534" : item.slots > 0 ? "#92400e" : "#991b1b",
+                                                    }}>
+                                                        {item.food_name}: {item.slots} left
+                                                    </span>
+                                                ))}
+                                                {menuStock.length === 0 && <span style={{ color: "#94a3b8", fontSize: "13px" }}>No menu items found.</span>}
+                                            </div>
+                                        </div>
+
+                                        {/* Orders List */}
+                                        <h4 style={{ margin: "0 0 12px", fontSize: "15px", color: "#1e293b" }}>🎫 Recent Orders</h4>
+                                        {bookingsLoading && bookings.length === 0 ? (
+                                            <p style={{ color: "#64748b", textAlign: "center", padding: "20px" }}>Loading orders...</p>
+                                        ) : bookings.length === 0 ? (
+                                            <p style={{ color: "#94a3b8", textAlign: "center", padding: "20px" }}>No orders placed yet today.</p>
+                                        ) : (
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "400px", overflowY: "auto" }}>
+                                                {bookings.map((order) => (
+                                                    <div key={order.id} style={{
+                                                        border: "1px solid #e2e8f0",
+                                                        borderRadius: "12px",
+                                                        padding: "16px",
+                                                        background: "#fafafa",
+                                                        display: "flex",
+                                                        justifyContent: "space-between",
+                                                        alignItems: "center",
+                                                        gap: "16px"
+                                                    }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                                                            <div style={{
+                                                                background: "linear-gradient(135deg, #16a34a, #15803d)",
+                                                                color: "white",
+                                                                borderRadius: "10px",
+                                                                padding: "8px 14px",
+                                                                fontWeight: 800,
+                                                                fontSize: "18px",
+                                                                fontFamily: "'Courier New', monospace",
+                                                                minWidth: "70px",
+                                                                textAlign: "center"
+                                                            }}>
+                                                                {order.token_number}
+                                                            </div>
+                                                            <div>
+                                                                <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#1e293b" }}>{order.user_name}</p>
+                                                                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
+                                                                    {(order.items || []).map(i => `${i.quantity}× ${i.food_name}`).join(", ")}
+                                                                </p>
+                                                                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8" }}>
+                                                                    {new Date(order.created_at).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
+                                                            <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#16a34a" }}>₹{order.total_amount}</p>
+                                                            <span style={{
+                                                                display: "inline-block",
+                                                                padding: "2px 8px",
+                                                                borderRadius: "6px",
+                                                                fontSize: "11px",
+                                                                fontWeight: 600,
+                                                                background: order.status === "Confirmed" ? "#dcfce7" : order.status === "Completed" ? "#f1f5f9" : "#fef3c7",
+                                                                color: order.status === "Confirmed" ? "#166534" : order.status === "Completed" ? "#64748b" : "#92400e"
+                                                            }}>{order.status}</span>
+                                                            
+                                                            {order.status !== "Completed" && (
+                                                                <button
+                                                                    onClick={() => handleCompleteOrder(order.id)}
+                                                                    style={{
+                                                                        marginTop: "4px",
+                                                                        padding: "4px 10px",
+                                                                        fontSize: "11px",
+                                                                        background: "#3b82f6",
+                                                                        color: "white",
+                                                                        border: "none",
+                                                                        borderRadius: "6px",
+                                                                        cursor: "pointer",
+                                                                        fontWeight: 600
+                                                                    }}>
+                                                                    Mark Completed
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </section>
@@ -1274,7 +1444,7 @@ function Dashboard({ user, onLogout }) {
                                     </div>
                                     <div className="action-info">
                                         <h3>Dashboard</h3>
-                                        <p>Access your complete dashboard to book meals, view orders, and manage your bookings</p>
+                                        <p>View your previous orders, current active tokens, and transaction history.</p>
                                         <button className="action-btn" onClick={() => setView("student_dashboard")}>
                                             Go to Dashboard <span>→</span>
                                         </button>
@@ -1307,31 +1477,14 @@ function Dashboard({ user, onLogout }) {
                             </button>
                         </div>
                         <section className="std-dashboard-welcome">
-                            <h2>Welcome back, {user.name}!</h2>
-                            <p>Here's what's happening with your food bookings today</p>
+                            <h2>My Order History</h2>
+                            <p>Track your tokens and previous meal bookings</p>
                         </section>
 
-                        {/* My Orders Card */}
-                        <section className="std-stats-row">
-                            <div className="std-stat-card">
-                                <div className="std-stat-info">
-                                    <p className="std-stat-label">My Orders</p>
-                                    <p className="std-stat-value">{orderCount}</p>
-                                </div>
-                                <div className="std-stat-icon">
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-                                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-                                    </svg>
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* Quick Actions */}
-                        <section className="std-quick-actions">
-                            <h3 className="std-section-title">Quick Actions</h3>
-                            <div className="std-actions-grid">
-                                <button className="std-action-tile grievance-tile" onClick={handleOpenGrievanceModal}>
+                        <section className="std-quick-actions" style={{ marginTop: "30px" }}>
+                            <h3 className="std-section-title" style={{ fontSize: "18px", fontWeight: "700", color: "#1e293b", marginBottom: "16px" }}>Quick Actions</h3>
+                            <div className="std-actions-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "16px" }}>
+                                <button className="std-action-tile grievance-tile" onClick={handleOpenGrievanceModal} style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
                                     <div className="std-tile-icon">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <circle cx="12" cy="12" r="10"></circle>
@@ -1339,10 +1492,10 @@ function Dashboard({ user, onLogout }) {
                                             <line x1="12" y1="16" x2="12.01" y2="16"></line>
                                         </svg>
                                     </div>
-                                    <span>Grievances</span>
+                                    <span style={{ fontWeight: "600", fontSize: "15px" }}>Grievances</span>
                                 </button>
 
-                                <button className="std-action-tile tokens-tile" onClick={() => { setView("certificate"); fetchCertificates(); }}>
+                                <button className="std-action-tile tokens-tile" onClick={() => { setView("certificate"); fetchCertificates(); }} style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
                                     <div className="std-tile-icon">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <rect x="3" y="3" width="18" height="18" rx="2"></rect>
@@ -1350,10 +1503,10 @@ function Dashboard({ user, onLogout }) {
                                             <line x1="3" y1="15" x2="21" y2="15"></line>
                                         </svg>
                                     </div>
-                                    <span>Certificate</span>
+                                    <span style={{ fontWeight: "600", fontSize: "15px" }}>Certificate</span>
                                 </button>
 
-                                <button className="std-action-tile staff-tile" onClick={() => { setView("staff_panel"); fetchStaffPanel(); }}>
+                                <button className="std-action-tile staff-tile" onClick={() => { setView("staff_panel"); fetchStaffPanel(); }} style={{ background: "linear-gradient(135deg, #8b5cf6, #7c3aed)", border: "none", borderRadius: "16px", padding: "20px", color: "white", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", transition: "transform 0.2s" }}>
                                     <div className="std-tile-icon">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -1362,16 +1515,84 @@ function Dashboard({ user, onLogout }) {
                                             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                                         </svg>
                                     </div>
-                                    <span>Staff Panel</span>
+                                    <span style={{ fontWeight: "600", fontSize: "15px" }}>Staff Panel</span>
                                 </button>
                             </div>
+                        </section>
+
+                        {/* Recent Orders List for Student */}
+                        <section className="std-orders-list-section" style={{ marginTop: "20px" }}>
+                            {bookingsLoading ? (
+                                <p style={{ textAlign: "center", color: "#64748b" }}>Loading your orders...</p>
+                            ) : bookings.filter(b => b.user_username === user.username).length === 0 ? (
+                                <div className="std-empty-order" style={{ textAlign: "center", padding: "40px", backgroundColor: "white", borderRadius: "16px", border: "1.5px dashed #e2e8f0" }}>
+                                    <p style={{ color: "#94a3b8" }}>You haven't placed any orders yet.</p>
+                                    <button className="action-btn-green" onClick={() => setView("menu")} style={{ marginTop: "12px" }}>Browse Menu</button>
+                                </div>
+                            ) : (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                                    {bookings
+                                        .filter(b => b.user_username === user.username)
+                                        .map((order) => (
+                                            <div key={order.id} style={{
+                                                background: "white",
+                                                borderRadius: "16px",
+                                                padding: "20px",
+                                                boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "center",
+                                                border: order.status === "Confirmed" ? "1px solid #bbf7d0" : "1px solid #f1f5f9"
+                                            }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+                                                    <div style={{
+                                                        background: order.status === "Confirmed" ? "linear-gradient(135deg, #16a34a, #15803d)" : "#94a3b8",
+                                                        color: "white",
+                                                        borderRadius: "12px",
+                                                        padding: "12px 16px",
+                                                        fontWeight: 800,
+                                                        fontSize: "20px",
+                                                        fontFamily: "'Courier New', monospace",
+                                                        textAlign: "center"
+                                                    }}>
+                                                        {order.token_number}
+                                                    </div>
+                                                    <div>
+                                                        <h4 style={{ margin: 0, fontSize: "16px", color: "#1e293b" }}>
+                                                            {(order.items || []).map(i => `${i.quantity}× ${i.food_name}`).join(", ")}
+                                                        </h4>
+                                                        <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>
+                                                            {new Date(order.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div style={{ textAlign: "right" }}>
+                                                    <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#16a34a" }}>₹{order.total_amount}</p>
+                                                    <span style={{
+                                                        display: "inline-block",
+                                                        marginTop: "4px",
+                                                        padding: "4px 10px",
+                                                        borderRadius: "6px",
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                        background: order.status === "Confirmed" ? "#dcfce7" : "#f1f5f9",
+                                                        color: order.status === "Confirmed" ? "#166534" : "#64748b"
+                                                    }}>
+                                                        {order.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+                            )}
                         </section>
                     </>
                 ) : view === "staff_panel" ? (
                     /* ─── Staff Panel View ─── */
                     <section className="staff-panel-section">
                         <div className="cert-view-header">
-                            <button className="back-btn" onClick={() => setView("student_dashboard")}>
+                            <button className="back-btn" onClick={() => setView("dashboard")}>
                                 <span>←</span> Back
                             </button>
                             <h2>Canteen Staff</h2>
@@ -1418,7 +1639,7 @@ function Dashboard({ user, onLogout }) {
                     /* ─── Certificate View ─── */
                     <section className="cert-view-section">
                         <div className="cert-view-header">
-                            <button className="back-btn" onClick={() => setView("student_dashboard")}>
+                            <button className="back-btn" onClick={() => setView("dashboard")}>
                                 <span>←</span> Back
                             </button>
                             <h2>Food Certificates</h2>
@@ -1499,6 +1720,14 @@ function Dashboard({ user, onLogout }) {
                         onRemoveItem={handleRemoveCartItem}
                         onProceedToPayment={handleCheckoutCart}
                         onBack={() => setView("menu")}
+                    />
+                ) : view === "payment" ? (
+                    <Payment
+                        cart={cart}
+                        totalAmount={cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+                        user={user}
+                        onBackToCart={() => setView("cart")}
+                        onBackToDashboard={handlePaymentSuccess}
                     />
                 ) : view === "confirm_order" ? (
                     <ConfirmOrder

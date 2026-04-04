@@ -39,12 +39,31 @@ function Menu({ onBack, onBookItem, cart = [], setCart = () => { }, onProceedToC
         fetchMenu();
     }, []);
 
-    const handleBook = (item) => {
-        if (onBookItem) {
-            onBookItem(item);
-        } else {
-            alert(`Booking ${item.food_name}. Integration for orders can be added here!`);
+    const handleAddToCart = (item) => {
+        // Validate slots before adding
+        if (item.slots <= 0) {
+            alert(`${item.food_name} is currently sold out!`);
+            return;
         }
+
+        const existingItemIndex = cart.findIndex(c => c.id === item.id);
+        if (existingItemIndex > -1) {
+            // If it exists, but increasing it would exceed slots, abort
+            if (cart[existingItemIndex].quantity >= item.slots) {
+                alert(`Cannot add more ${item.food_name}, only ${item.slots} slots left!`);
+                return;
+            }
+            const newCart = [...cart];
+            newCart[existingItemIndex].quantity += 1;
+            setCart(newCart);
+        } else {
+            setCart([...cart, { ...item, quantity: 1 }]);
+        }
+    };
+
+    const handleBook = (item) => {
+        // We now just use handleAddToCart directly
+        handleAddToCart(item);
     };
 
     const handleDragStart = (e, item) => {
@@ -57,26 +76,7 @@ function Menu({ onBack, onBookItem, cart = [], setCart = () => { }, onProceedToC
         const itemData = e.dataTransfer.getData("application/json");
         if (itemData) {
             const item = JSON.parse(itemData);
-
-            // Validate slots before adding
-            if (item.slots <= 0) {
-                alert(`${item.food_name} is currently sold out!`);
-                return;
-            }
-
-            const existingItemIndex = cart.findIndex(c => c.id === item.id);
-            if (existingItemIndex > -1) {
-                // If it exists, but increasing it would exceed slots, abort
-                if (cart[existingItemIndex].quantity >= item.slots) {
-                    alert(`Cannot add more ${item.food_name}, only ${item.slots} slots left!`);
-                    return;
-                }
-                const newCart = [...cart];
-                newCart[existingItemIndex].quantity += 1;
-                setCart(newCart);
-            } else {
-                setCart([...cart, { ...item, quantity: 1 }]);
-            }
+            handleAddToCart(item);
         }
     };
 
