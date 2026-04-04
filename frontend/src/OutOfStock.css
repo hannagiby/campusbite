@@ -4,7 +4,7 @@
     align-items: center;
     min-height: calc(100vh - 80px);
     /* Adjust based on navbar */
-    background-color: #f1f5f9;
+    background-color: transparent;
     /* Subtle gray background */
     font-family: 'Inter', -apple-system, sans-serif;
     padding: 40px 20px;

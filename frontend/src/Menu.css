@@ -3,7 +3,7 @@
     gap: 24px;
     align-items: flex-start;
     padding: 24px;
-    background: #f8fafc;
+    background: transparent;
     min-height: calc(100vh - 80px);
     /* Adjust based on header */
     max-width: 1400px;

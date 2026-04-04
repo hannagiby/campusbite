@@ -1,0 +1,169 @@
+.about-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.about-main {
+  position: relative;
+  z-index: 2;
+  padding: 160px 6% 100px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex-grow: 1;
+}
+
+.about-header-section {
+  text-align: center;
+  margin-bottom: 70px;
+}
+
+.about-main-title {
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--primary-green, #062c24);
+  letter-spacing: -2px;
+  margin-bottom: 24px;
+}
+
+.highlight-palette {
+  color: #d97706; /* Golden-orange accent */
+}
+
+.about-main-subtitle {
+  font-size: 19px;
+  color: #4b5563;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+/* Split Container */
+.about-split-container {
+  display: flex;
+  max-width: 1050px;
+  margin: 0 auto;
+  gap: 40px;
+}
+
+/* Left Side: Logo Box */
+.about-logo-box {
+  flex: 0 0 350px;
+  background: white;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+  padding: 60px 40px;
+}
+
+.about-big-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.about-big-logo {
+  width: 100px;
+  height: 100px;
+  background: var(--primary-green, #062c24);
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  color: white;
+  box-shadow: 0 10px 25px rgba(6, 44, 36, 0.2);
+}
+
+.about-big-brand h2 {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--primary-green, #062c24);
+  letter-spacing: -1px;
+}
+
+/* Right Side: Our Story */
+.about-story-box {
+  flex: 1;
+  background: white;
+  border-radius: 24px;
+  padding: 60px 50px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+}
+
+.about-story-box h3 {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--primary-green, #062c24);
+  margin-bottom: 24px;
+  letter-spacing: -1px;
+}
+
+.story-text {
+  font-size: 17px;
+  line-height: 1.8;
+  color: #4b5563;
+  margin-bottom: 40px;
+}
+
+.story-divider {
+  width: 100%;
+  height: 1px;
+  background: #f1f5f9;
+  margin-bottom: 40px;
+}
+
+.campus-home-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.campus-pin {
+  font-size: 24px;
+  color: #e11d48; /* Red/pink pin color */
+  background: rgba(225, 29, 72, 0.1);
+  width: 45px;
+  height: 45px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.campus-home-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.campus-home-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-green, #062c24);
+}
+
+.campus-home-details {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .about-split-container {
+    flex-direction: column;
+  }
+  .about-logo-box {
+    flex: none;
+    padding: 40px;
+  }
+  .about-story-box {
+    padding: 40px 30px;
+  }
+  .about-main-title {
+    font-size: 40px;
+  }
+}

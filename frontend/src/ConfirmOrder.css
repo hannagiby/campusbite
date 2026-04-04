@@ -5,7 +5,7 @@
     padding: 40px 20px;
     min-height: calc(100vh - 80px);
     /* Adjust based on navbar */
-    background-color: #fcfcfb;
+    background-color: transparent;
     /* Soft warm background */
     font-family: 'Inter', -apple-system, sans-serif;
 }
