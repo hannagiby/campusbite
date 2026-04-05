@@ -5,10 +5,10 @@ import OutOfStock from "./OutOfStock";
 import Cart from "./Cart";
 import Payment from "./Payment";
 import "./Dashboard.css";
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
 
 // Animated Counter Component
 function AnimatedCounter({ target, duration = 1500, prefix = "", suffix = "" }) {
@@ -124,8 +124,50 @@ function Dashboard({ user, onLogout }) {
     const isAdmin = (user.role || "").toLowerCase() === "admin";
     const isCanteenStaff = (user.role || "").toLowerCase() === "canteen";
 
+    const isStudentOrFaculty = !isAdmin && !isCanteenStaff;
+    const userOrders = isStudentOrFaculty && user ? bookings.filter(b => b.user_username === user.username) : [];
+    
+    // Process monthly spending directly into an array of 12 months
+    const monthlySpending = new Array(12).fill(0);
+    if (isStudentOrFaculty) {
+        userOrders.forEach(order => {
+            const date = new Date(order.created_at);
+            if (!isNaN(date.getTime())) {
+                const amount = Number(order.total_amount) || 0;
+                monthlySpending[date.getMonth()] += amount;
+            }
+        });
+    }
+    
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    const userChartData = {
+        labels: monthNames,
+        datasets: [
+            {
+                label: 'Monthly Spending (₹)',
+                data: monthlySpending,
+                backgroundColor: 'rgba(52, 211, 153, 0.6)',
+                borderColor: 'rgba(16, 185, 129, 1)',
+                borderWidth: 1,
+                borderRadius: 4,
+            }
+        ]
+    };
+
+    const userChartOptions = {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            title: { display: true, text: 'Monthly Outgoing / Spending' }
+        },
+        scales: {
+            y: { beginAtZero: true }
+        }
+    };
+
     // Real-Time Alerts State
-    const baseAlerts = ["⏰ Rush hour approaching at 12:30 PM", "🎉 Special combo offers available today!"];
+    const baseAlerts = ["⏰ Rush hour approaching at 12:30 PM"];
     const [activeAlertIndex, setActiveAlertIndex] = useState(0);
     const currentAlerts = React.useMemo(() => {
         let dynamic = [];
@@ -2227,6 +2269,14 @@ function Dashboard({ user, onLogout }) {
                                             Book Now <span>→</span>
                                         </button>
                                     </div>
+                                </div>
+                            </section>
+
+                            {/* Monthly Spending Chart below the grid */}
+                            <section className="user-spending-chart-section" style={{ marginTop: '2rem', padding: '1.5rem', background: 'white', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                                <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '1rem', color: '#1e293b' }}>Analytics</h3>
+                                <div style={{ position: 'relative', height: '300px', width: '100%' }}>
+                                    <Bar data={userChartData} options={userChartOptions} />
                                 </div>
                             </section>
                         </>
