@@ -128,6 +128,43 @@ function Dashboard({ user, onLogout }) {
     const isStudentOrFaculty = !isAdmin && !isCanteenStaff;
     const userOrders = isStudentOrFaculty && user ? bookings.filter(b => b.user_username === user.username) : [];
     
+    // --- Booking Time Restriction Logic ---
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 10000); // Check every 10 seconds
+        return () => clearInterval(timer);
+    }, []);
+
+    let isBookingAllowed = true;
+    let bookingMessage = "";
+
+    if (isStudentOrFaculty) {
+        const hours = currentTime.getHours();
+        const minutes = currentTime.getMinutes();
+        const totalMinutes = hours * 60 + minutes;
+        const roleStr = (user.role || "").toLowerCase();
+
+        if (roleStr === "faculty") {
+            // 8:40 AM to 10:30 AM (520 to 630 minutes)
+            if (totalMinutes >= 520 && totalMinutes <= 630) {
+                isBookingAllowed = true;
+            } else {
+                isBookingAllowed = false;
+                bookingMessage = "Booking available for Faculty only from 8:40 AM to 10:30 AM";
+            }
+        } else {
+            // Students: 10:40 AM to 11:00 AM (640 to 660 minutes)
+            if (totalMinutes >= 640 && totalMinutes <= 660) {
+                isBookingAllowed = true;
+            } else {
+                isBookingAllowed = false;
+                bookingMessage = "Booking available for Students only from 10:40 AM to 11:00 AM";
+            }
+        }
+    }
+    // --------------------------------------
+
     // Process monthly spending directly into an array of 12 months
     const monthlySpending = new Array(12).fill(0);
     if (isStudentOrFaculty) {
@@ -2266,9 +2303,20 @@ function Dashboard({ user, onLogout }) {
                                     <div className="action-info-dark">
                                         <h3>Quick Book</h3>
                                         <p>Skip the wait and book your favorite meals instantly with just a few clicks</p>
-                                        <button className="action-btn-green" onClick={() => setView("menu")}>
+                                        <button 
+                                            className="action-btn-green" 
+                                            onClick={() => setView("menu")}
+                                            disabled={!isBookingAllowed}
+                                            style={!isBookingAllowed ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                                            title={!isBookingAllowed ? bookingMessage : ""}
+                                        >
                                             Book Now <span>→</span>
                                         </button>
+                                        {!isBookingAllowed && (
+                                            <p style={{ color: "#ef4444", fontSize: "12.5px", marginTop: "10px", fontWeight: "600", lineHeight: "1.4" }}>
+                                                {bookingMessage}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </section>
