@@ -38,9 +38,52 @@ function AnimatedCounter({ target, duration = 1500, prefix = "", suffix = "" }) 
     return <span>{prefix}{count.toLocaleString("en-IN")}{suffix}</span>;
 }
 
-function Dashboard({ user, onLogout }) {
+function Dashboard({ user, onLogout, onUpdateUser }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [view, setView] = useState("dashboard"); // "dashboard", "student_dashboard", "certificate", "staff_panel", "profile", "menu", "confirm_order", "out_of_stock", "cart"
+
+    // Profile Edit State
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [editProfileName, setEditProfileName] = useState(user?.name || "");
+    const [editProfileEmail, setEditProfileEmail] = useState(user?.email || "");
+    const [profileUpdateState, setProfileUpdateState] = useState({ loading: false, error: "", success: "" });
+
+    const handleEditProfileClick = () => {
+        setEditProfileName(user?.name || "");
+        setEditProfileEmail(user?.email || "");
+        setProfileUpdateState({ loading: false, error: "", success: "" });
+        setIsEditingProfile(true);
+    };
+
+    const handleSaveProfile = async () => {
+        if (!editProfileName.trim() || !editProfileEmail.trim()) {
+            setProfileUpdateState({ loading: false, error: "Name and Email are required", success: "" });
+            return;
+        }
+
+        setProfileUpdateState({ loading: true, error: "", success: "" });
+        try {
+            const res = await fetch(`http://localhost:5000/api/users/update/${user.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: editProfileName, email: editProfileEmail })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setProfileUpdateState({ loading: false, error: "", success: "Profile updated successfully!" });
+                if (onUpdateUser) {
+                    onUpdateUser(data.user);
+                }
+                setTimeout(() => {
+                    setIsEditingProfile(false);
+                }, 1000);
+            } else {
+                setProfileUpdateState({ loading: false, error: data.message || "Failed to update profile", success: "" });
+            }
+        } catch (err) {
+            setProfileUpdateState({ loading: false, error: "Server error", success: "" });
+        }
+    };
 
     // Grievance state
     const [showGrievanceModal, setShowGrievanceModal] = useState(false);
@@ -2643,12 +2686,30 @@ function Dashboard({ user, onLogout }) {
                 ) : (
                     <section className="profile-section">
                         <div className="profile-card">
-                            <div className="profile-header">
-                                <button className="back-btn" onClick={() => setView("dashboard")}>
-                                    <span>←</span> Back to Dashboard
-                                </button>
-                                <h2>User Profile</h2>
+                            <div className="profile-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <button className="back-btn" onClick={() => setView("dashboard")}>
+                                        <span>←</span> Back
+                                    </button>
+                                    <h2 style={{ margin: 0 }}>User Profile</h2>
+                                </div>
+                                {!isEditingProfile ? (
+                                    <button className="grievance-submit-btn" onClick={handleEditProfileClick} style={{ padding: "8px 16px", fontSize: "14px", width: "auto" }}>
+                                        Edit Profile
+                                    </button>
+                                ) : (
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button className="grievance-submit-btn" onClick={handleSaveProfile} disabled={profileUpdateState.loading} style={{ padding: "8px 16px", fontSize: "14px", width: "auto", backgroundColor: "#10b981", color: "white" }}>
+                                            {profileUpdateState.loading ? "Saving..." : "Save"}
+                                        </button>
+                                        <button className="grievance-back-btn" onClick={() => setIsEditingProfile(false)} style={{ padding: "8px 16px", fontSize: "14px", width: "auto", margin: 0 }}>
+                                            Cancel
+                                        </button>
+                                    </div>
+                                )}
                             </div>
+                            {profileUpdateState.error && <div className="cert-error" style={{ margin: "10px 20px" }}>{profileUpdateState.error}</div>}
+                            {profileUpdateState.success && <div style={{ margin: "10px 20px", color: "#10b981", fontWeight: "600", fontSize: "14px", textAlign: "center" }}>{profileUpdateState.success}</div>}
                             <div className="profile-content">
                                 <div className="profile-avatar-large">
                                     <span role="img" aria-label="user">{isAdmin ? "🛡️" : user.role === "Faculty" ? "👨‍🏫" : "🎓"}</span>
@@ -2656,23 +2717,31 @@ function Dashboard({ user, onLogout }) {
                                 <div className="profile-details">
                                     <div className="detail-item">
                                         <label>Full Name</label>
-                                        <p>{user.name}</p>
+                                        {isEditingProfile ? (
+                                            <input type="text" className="canteen-input" value={editProfileName} onChange={(e) => setEditProfileName(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '4px' }} />
+                                        ) : (
+                                            <p>{user.name}</p>
+                                        )}
                                     </div>
                                     <div className="detail-item">
-                                        <label>College ID</label>
-                                        <p>{user.username.toUpperCase()}</p>
+                                        <label>College ID (Username)</label>
+                                        <p style={{ color: "#94a3b8" }}>{user.username.toUpperCase()} <span style={{ fontSize: '11px', marginLeft: '8px' }}>(Cannot be edited)</span></p>
                                     </div>
                                     <div className="detail-item">
                                         <label>Email Address</label>
-                                        <p>{user.email}</p>
+                                        {isEditingProfile ? (
+                                            <input type="email" className="canteen-input" value={editProfileEmail} onChange={(e) => setEditProfileEmail(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '4px' }} />
+                                        ) : (
+                                            <p>{user.email}</p>
+                                        )}
                                     </div>
                                     <div className="detail-item">
                                         <label>Role</label>
-                                        <p>{user.role}</p>
+                                        <p style={{ color: "#94a3b8" }}>{user.role} <span style={{ fontSize: '11px', marginLeft: '8px' }}>(Cannot be edited)</span></p>
                                     </div>
                                     <div className="detail-item">
                                         <label>Department</label>
-                                        <p>{getDepartment(user.username)}</p>
+                                        <p style={{ color: "#94a3b8" }}>{getDepartment(user.username)}</p>
                                     </div>
                                 </div>
                             </div>

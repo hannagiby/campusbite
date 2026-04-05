@@ -88,9 +88,18 @@ function Profile({ onSwitchToRegister, onShowContact }) {
     }
   }, []);
 
+  const handleUpdateUser = (updatedUser) => {
+    setLoggedInUser(updatedUser);
+    if (localStorage.getItem("rememberMe") === "true") {
+      localStorage.setItem("campusBiteUser", JSON.stringify(updatedUser));
+    } else {
+      sessionStorage.setItem("campusBiteUser", JSON.stringify(updatedUser));
+    }
+  };
+
   // If logged in, show the personalized dashboard
   if (loggedInUser) {
-    return <Dashboard user={loggedInUser} onLogout={handleLogout} />;
+    return <Dashboard user={loggedInUser} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />;
   }
 
   return (

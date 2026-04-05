@@ -198,5 +198,33 @@ router.delete("/staff/:id", async (req, res) => {
   }
 });
 
+// ─── Update User Profile ───
+router.put("/update/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email } = req.body;
+
+    const { data: updatedUser, error } = await supabase
+      .from("users")
+      .update({ name, email })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Update profile error:", error);
+      return res.status(500).json({ message: "Failed to update profile", error: error.message });
+    }
+
+    res.json({
+      message: "Profile updated successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;
 
