@@ -118,4 +118,41 @@ router.get("/certificates", async (req, res) => {
     }
 });
 
+// DELETE a certificate
+router.delete("/certificate/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // First, check if the certificate exists to get the file_url (optional, if we want to delete from storage too)
+        const { data: certData, error: fetchError } = await supabase
+            .from("food_certificates")
+            .select("file_url")
+            .eq("id", id)
+            .single();
+
+        if (fetchError) {
+            console.error("Error fetching certificate to delete:", fetchError);
+            return res.status(404).json({ message: "Certificate not found" });
+        }
+
+        // Delete from database
+        const { error: dbError } = await supabase
+            .from("food_certificates")
+            .delete()
+            .eq("id", id);
+
+        if (dbError) {
+            console.error("Supabase DB delete error:", dbError);
+            return res.status(500).json({ message: "Failed to delete certificate record" });
+        }
+
+        // Note: For a complete solution, you can also delete from Supabase storage using the file name extracted from the URL, but deleting the DB record is usually sufficient to hide it.
+        
+        res.status(200).json({ message: "Certificate deleted successfully" });
+    } catch (error) {
+        console.error("Delete exception:", error);
+        res.status(500).json({ message: "Server error during delete" });
+    }
+});
+
 module.exports = router;

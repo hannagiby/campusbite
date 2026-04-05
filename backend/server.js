@@ -22,9 +22,14 @@ const grievanceRoutes = require("./routes/grievanceRoutes");
 app.use("/api/grievances", grievanceRoutes);
 const paymentRoutes = require("./routes/paymentRoutes");
 app.use("/api/payment", paymentRoutes);
+const analyticsRoutes = require("./routes/analyticsRoutes");
+app.use("/api/analytics", analyticsRoutes);
+const announcementsRoutes = require("./routes/announcementsRoutes");
+app.use("/api/announcements", announcementsRoutes);
+const eventsRoutes = require("./routes/eventsRoutes");
+app.use("/api/events", eventsRoutes);
 
 // Start server directly
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
-

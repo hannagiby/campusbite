@@ -1,10 +1,41 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Menu from "./Menu";
 import ConfirmOrder from "./ConfirmOrder";
 import OutOfStock from "./OutOfStock";
 import Cart from "./Cart";
 import Payment from "./Payment";
 import "./Dashboard.css";
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+
+// Animated Counter Component
+function AnimatedCounter({ target, duration = 1500, prefix = "", suffix = "" }) {
+    const [count, setCount] = useState(0);
+    const countRef = useRef(null);
+
+    useEffect(() => {
+        if (target === 0) { setCount(0); return; }
+        const startTime = Date.now();
+        const startVal = 0;
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // Ease-out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = Math.round(startVal + (target - startVal) * eased);
+            setCount(current);
+            if (progress < 1) {
+                countRef.current = requestAnimationFrame(animate);
+            }
+        };
+        countRef.current = requestAnimationFrame(animate);
+        return () => { if (countRef.current) cancelAnimationFrame(countRef.current); };
+    }, [target, duration]);
+
+    return <span>{prefix}{count.toLocaleString("en-IN")}{suffix}</span>;
+}
 
 function Dashboard({ user, onLogout }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -23,7 +54,7 @@ function Dashboard({ user, onLogout }) {
     const [userGrievances, setUserGrievances] = useState([]);
     const [userGrievanceFilter, setUserGrievanceFilter] = useState("All"); // "All", "Pending", "Resolved"
     const [userGrievanceLoading, setUserGrievanceLoading] = useState(false);
-    
+
     // Grievance Notifications State
     const [notificationToast, setNotificationToast] = useState(null);
 
@@ -31,14 +62,13 @@ function Dashboard({ user, onLogout }) {
     const [grievances, setGrievances] = useState([]);
     const [grievanceLoading, setGrievanceLoading] = useState(false);
     const [grievanceError, setGrievanceError] = useState("");
-    
+
     // Admin Resolve Grievance State
     const [showResolveModal, setShowResolveModal] = useState(false);
     const [resolveGrievanceId, setResolveGrievanceId] = useState(null);
     const [resolveMessage, setResolveMessage] = useState("");
     const [selectedItem, setSelectedItem] = useState(null);
     const [cart, setCart] = useState([]);
-    const [orderCount, setOrderCount] = useState(0);
     const [certificates, setCertificates] = useState([]);
     const [certLoading, setCertLoading] = useState(false);
     const [certError, setCertError] = useState("");
@@ -47,7 +77,14 @@ function Dashboard({ user, onLogout }) {
     const [staffPanelError, setStaffPanelError] = useState("");
 
     // Admin staff management state
-    const [adminView, setAdminView] = useState("manage_staff"); // "manage_staff" or "upload_certificate"
+    const [adminView, setAdminView] = useState("analytics"); // "analytics", "manage_staff", "view_grievances", or "upload_certificate"
+
+    // Analytics state
+    const [analyticsStats, setAnalyticsStats] = useState({ totalUsers: 0, todayOrders: 0, todayRevenue: 0, totalRevenue: 0, activeTokens: 0 });
+    const [orderTrends, setOrderTrends] = useState({ labels: [], orders: [], revenue: [] });
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+
     const [staffList, setStaffList] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newStaffName, setNewStaffName] = useState("");
@@ -83,15 +120,28 @@ function Dashboard({ user, onLogout }) {
     const isAdmin = (user.role || "").toLowerCase() === "admin";
     const isCanteenStaff = (user.role || "").toLowerCase() === "canteen";
 
+    // Events Calendar State
+    const [events, setEvents] = useState([]);
+    const [eventForm, setEventForm] = useState({ title: "", description: "", event_date: "", type: "event" });
+    const [eventSaving, setEventSaving] = useState(false);
+
+    // Admin Order History State
+    const [orderHistoryStartDate, setOrderHistoryStartDate] = useState("");
+    const [orderHistoryEndDate, setOrderHistoryEndDate] = useState("");
+
     // Fetch resources
     useEffect(() => {
         if (isAdmin) {
             fetchStaff();
+            fetchAnalytics();
+            fetchBookings(); // Needed for order history
         }
         if (isCanteenStaff) {
             fetchCategories();
         }
-        
+
+        fetchEvents();
+
         // Notifications check for normal users
         if (!isAdmin && !isCanteenStaff && user && user.username) {
             checkGrievanceNotifications();
@@ -99,18 +149,107 @@ function Dashboard({ user, onLogout }) {
         }
     }, [isAdmin, isCanteenStaff, user]);
 
+    // Fetch events
+    const fetchEvents = async () => {
+        try {
+            const res = await fetch("http://localhost:5000/api/events");
+            const data = await res.json();
+            if (res.ok) setEvents(data.events || []);
+        } catch (err) {
+            console.error("Failed to fetch events:", err);
+        }
+    };
+
+    const handleCreateEvent = async () => {
+        if (!eventForm.title.trim() || !eventForm.event_date) return;
+        setEventSaving(true);
+        try {
+            const res = await fetch("http://localhost:5000/api/events", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(eventForm)
+            });
+            if (res.ok) {
+                setEventForm({ title: "", description: "", event_date: "", type: "event" });
+                fetchEvents();
+            }
+        } catch (err) {
+            console.error("Failed to create event:", err);
+        }
+        setEventSaving(false);
+    };
+
+    const handleDeleteEvent = async (id) => {
+        try {
+            const res = await fetch(`http://localhost:5000/api/events/${id}`, { method: "DELETE" });
+            if (res.ok) {
+                setEvents(prev => prev.filter(e => e.id !== id));
+            }
+        } catch (err) {
+            console.error("Failed to delete event:", err);
+        }
+    };
+
+    const exportToCSV = () => {
+        const headers = ["Order ID,Date,User,Token,Total Amount,Status"];
+        let filteredOrders = bookings;
+        if (orderHistoryStartDate) {
+            filteredOrders = filteredOrders.filter(o => new Date(o.created_at) >= new Date(orderHistoryStartDate));
+        }
+        if (orderHistoryEndDate) {
+            const end = new Date(orderHistoryEndDate);
+            end.setHours(23, 59, 59, 999);
+            filteredOrders = filteredOrders.filter(o => new Date(o.created_at) <= end);
+        }
+
+        const rows = filteredOrders.map(o => {
+            const date = new Date(o.created_at).toLocaleString("en-IN").replace(/,/g, '');
+            return `${o.id},${date},${o.user_name || 'Guest'},${o.token_number},${o.total_amount},${o.status}`;
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `order_history_${new Date().toISOString().split("T")[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Fetch analytics data
+    const fetchAnalytics = async () => {
+        setAnalyticsLoading(true);
+        try {
+            const [statsRes, trendsRes] = await Promise.all([
+                fetch("http://localhost:5000/api/analytics/stats"),
+                fetch("http://localhost:5000/api/analytics/order-trends")
+            ]);
+            const stats = await statsRes.json();
+            const trends = await trendsRes.json();
+
+            if (statsRes.ok) setAnalyticsStats(stats);
+            if (trendsRes.ok) setOrderTrends(trends);
+        } catch (err) {
+            console.error("Failed to fetch analytics:", err);
+        }
+        setAnalyticsLoading(false);
+    };
+
+
+
     const checkGrievanceNotifications = async () => {
         try {
             const res = await fetch(`http://localhost:5000/api/grievances/unnotified/${user.username}`);
             const data = await res.json();
-            
+
             if (res.ok && data.grievances && data.grievances.length > 0) {
                 // Show notification toast for the first one, or a summary
                 const count = data.grievances.length;
                 setNotificationToast({
                     title: "Grievance Resolved",
-                    message: count === 1 
-                        ? "Your grievance has been resolved." 
+                    message: count === 1
+                        ? "Your grievance has been resolved."
                         : `${count} of your grievances have been resolved.`
                 });
 
@@ -422,11 +561,26 @@ function Dashboard({ user, onLogout }) {
         }
     };
 
+    const handleDeleteCertificate = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this certificate?")) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/upload/certificate/${id}`, { method: "DELETE" });
+            if (res.ok) {
+                setCertificates(prev => prev.filter(c => c.id !== id));
+            } else {
+                alert("Failed to delete certificate.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error deleting certificate.");
+        }
+    };
+
     // Extract department from College ID (e.g., 23cs113 -> Computer Science)
     const getDepartment = (username) => {
         if (!username) return "Unknown";
         if (isAdmin) return "Administration";
-        
+
         // Extract the letters part from the username (e.g., 23cs113 -> cs, 23mca12 -> mca)
         const match = username.match(/[a-zA-Z]+/);
         const deptCode = match ? match[0].toLowerCase() : "";
@@ -642,10 +796,10 @@ function Dashboard({ user, onLogout }) {
             });
             const data = await res.json();
             if (res.ok) {
-                setGrievances(prev => prev.map(g => g.id === id ? { 
-                    ...g, 
-                    status: newStatus, 
-                    admin_message: adminMessage || g.admin_message 
+                setGrievances(prev => prev.map(g => g.id === id ? {
+                    ...g,
+                    status: newStatus,
+                    admin_message: adminMessage || g.admin_message
                 } : g));
             } else {
                 alert(data.message || "Failed to update status.");
@@ -749,7 +903,7 @@ function Dashboard({ user, onLogout }) {
                         <div className="grievance-modal-content" style={{ marginTop: '16px' }}>
                             <div className="canteen-form-group">
                                 <label>Admin Message / Reply (Optional)</label>
-                                <textarea 
+                                <textarea
                                     placeholder="e.g. Issue has been fixed. Kitchen cleaned."
                                     value={resolveMessage}
                                     onChange={(e) => setResolveMessage(e.target.value)}
@@ -843,8 +997,16 @@ function Dashboard({ user, onLogout }) {
 
                             {/* Quick Action Buttons */}
                             <section className="admin-quick-actions">
+                                <button className={`admin-action-btn analytics-btn ${adminView === "analytics" ? "active" : ""}`} onClick={() => { setAdminView("analytics"); fetchAnalytics(); }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                                    </svg>
+                                    <span>Analytics</span>
+                                </button>
                                 <button className={`admin-action-btn manage-staff-btn ${adminView === "manage_staff" ? "active" : ""}`} onClick={() => setAdminView("manage_staff")}>
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                         <circle cx="9" cy="7" r="4"></circle>
                                         <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -853,27 +1015,266 @@ function Dashboard({ user, onLogout }) {
                                     <span>Manage Staff</span>
                                 </button>
                                 <button className={`admin-action-btn grievance-btn ${adminView === "view_grievances" ? "active" : ""}`} onClick={() => { setAdminView("view_grievances"); fetchGrievances(); }}>
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                         <polyline points="14 2 14 8 20 8"></polyline>
                                         <line x1="16" y1="13" x2="8" y2="13"></line>
                                         <line x1="16" y1="17" x2="8" y2="17"></line>
                                         <polyline points="10 9 9 9 8 9"></polyline>
                                     </svg>
-                                    <span>Grievance Management</span>
+                                    <span>Grievances</span>
                                 </button>
                                 <button className={`admin-action-btn upload-btn ${adminView === "upload_certificate" ? "active" : ""}`} onClick={() => { setAdminView("upload_certificate"); fetchCertificates(); }}>
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                         <polyline points="17 8 12 3 7 8"></polyline>
                                         <line x1="12" y1="3" x2="12" y2="15"></line>
                                     </svg>
-                                    <span>Upload Certificates</span>
+                                    <span>Certificates</span>
+                                </button>
+                                <button className={`admin-action-btn ${adminView === "calendar" ? "active" : ""}`} onClick={() => setAdminView("calendar")}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <span>Calendar</span>
+                                </button>
+                                <button className={`admin-action-btn ${adminView === "order_history" ? "active" : ""}`} onClick={() => setAdminView("order_history")}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                    </svg>
+                                    <span>Order History</span>
                                 </button>
                             </section>
 
                             {/* Content based on Admin View */}
-                            {adminView === "manage_staff" ? (
+                            {adminView === "analytics" ? (
+                                /* ─── Analytics Dashboard ─── */
+                                <section className="analytics-section">
+                                    {/* Animated Stat Cards */}
+                                    <div className="analytics-stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                                        <div className="analytics-stat-card stat-orders">
+                                            <div className="stat-card-icon stat-icon-blue">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="1" y="3" width="15" height="13"></rect>
+                                                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                                                    <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                                                    <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                                                </svg>
+                                            </div>
+                                            <div className="stat-card-info">
+                                                <p className="stat-card-label">Today's Orders</p>
+                                                <p className="stat-card-value"><AnimatedCounter target={analyticsStats.todayOrders} /></p>
+                                            </div>
+                                            <div className="stat-card-accent stat-accent-blue"></div>
+                                        </div>
+
+                                        <div className="analytics-stat-card stat-revenue">
+                                            <div className="stat-card-icon stat-icon-green">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                                </svg>
+                                            </div>
+                                            <div className="stat-card-info">
+                                                <p className="stat-card-label">Revenue Today</p>
+                                                <p className="stat-card-value"><AnimatedCounter target={analyticsStats.todayRevenue} prefix="₹" /></p>
+                                            </div>
+                                            <div className="stat-card-accent stat-accent-green"></div>
+                                        </div>
+
+                                        <div className="analytics-stat-card stat-revenue" style={{ background: "linear-gradient(135deg, white, #fdf4ff)" }}>
+                                            <div className="stat-card-icon stat-icon-purple">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                                                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                                                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                                                </svg>
+                                            </div>
+                                            <div className="stat-card-info">
+                                                <p className="stat-card-label">Total Revenue</p>
+                                                <p className="stat-card-value"><AnimatedCounter target={analyticsStats.totalRevenue || 0} prefix="₹" /></p>
+                                            </div>
+                                            <div className="stat-card-accent stat-accent-purple"></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Order Trends Chart */}
+                                    <div className="analytics-chart-card" style={{ marginBottom: '20px' }}>
+                                        <h3 className="chart-title">📈 Order Trends (Last 7 Days)</h3>
+                                        <div className="chart-container">
+                                            <Line
+                                                data={{
+                                                    labels: orderTrends.labels,
+                                                    datasets: [
+                                                        {
+                                                            label: 'Orders',
+                                                            data: orderTrends.orders,
+                                                            borderColor: '#6366f1',
+                                                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                                            borderWidth: 3,
+                                                            fill: true,
+                                                            tension: 0.4,
+                                                            pointBackgroundColor: '#6366f1',
+                                                            pointBorderColor: '#fff',
+                                                            pointBorderWidth: 2,
+                                                            pointRadius: 5,
+                                                            pointHoverRadius: 7
+                                                        },
+                                                        {
+                                                            label: 'Revenue (₹)',
+                                                            data: orderTrends.revenue,
+                                                            borderColor: '#10b981',
+                                                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                                            borderWidth: 3,
+                                                            fill: true,
+                                                            tension: 0.4,
+                                                            pointBackgroundColor: '#10b981',
+                                                            pointBorderColor: '#fff',
+                                                            pointBorderWidth: 2,
+                                                            pointRadius: 5,
+                                                            pointHoverRadius: 7,
+                                                            yAxisID: 'y1'
+                                                        }
+                                                    ]
+                                                }}
+                                                options={{
+                                                    responsive: true,
+                                                    maintainAspectRatio: false,
+                                                    interaction: { mode: 'index', intersect: false },
+                                                    plugins: {
+                                                        legend: { position: 'top', labels: { usePointStyle: true, padding: 20, font: { family: 'Inter', weight: 600 } } },
+                                                        tooltip: { backgroundColor: '#1e293b', titleFont: { family: 'Inter' }, bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8 }
+                                                    },
+                                                    scales: {
+                                                        x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 12 } } },
+                                                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 12 } } },
+                                                        y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { font: { family: 'Inter', size: 12 }, callback: (v) => '₹' + v } }
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                </section>
+                            ) : adminView === "order_history" ? (
+                                <section className="admin-table-section">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                        <h3>Order History</h3>
+                                        <button className="table-btn edit-btn" onClick={exportToCSV} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#10b981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                            Export to CSV
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+                                        <div className="canteen-form-group" style={{ margin: 0, flex: 1 }}>
+                                            <label>Start Date</label>
+                                            <input type="date" value={orderHistoryStartDate} onChange={e => setOrderHistoryStartDate(e.target.value)} />
+                                        </div>
+                                        <div className="canteen-form-group" style={{ margin: 0, flex: 1 }}>
+                                            <label>End Date</label>
+                                            <input type="date" value={orderHistoryEndDate} onChange={e => setOrderHistoryEndDate(e.target.value)} />
+                                        </div>
+                                    </div>
+                                    <div className="admin-table-wrapper" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                                        <table className="admin-table">
+                                            <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#fdfdfd' }}>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Token</th>
+                                                    <th>User</th>
+                                                    <th>Items</th>
+                                                    <th>Amount</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {bookings.filter(o => {
+                                                    if (!orderHistoryStartDate && !orderHistoryEndDate) return true;
+                                                    const oDate = new Date(o.created_at);
+                                                    if (orderHistoryStartDate && oDate < new Date(orderHistoryStartDate)) return false;
+                                                    if (orderHistoryEndDate) {
+                                                        const end = new Date(orderHistoryEndDate);
+                                                        end.setHours(23, 59, 59, 999);
+                                                        if (oDate > end) return false;
+                                                    }
+                                                    return true;
+                                                }).map((order) => (
+                                                    <tr key={order.id}>
+                                                        <td>{new Date(order.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+                                                        <td><span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{order.token_number}</span></td>
+                                                        <td>{order.user_name || "Guest"}</td>
+                                                        <td style={{ fontSize: '13px' }}>{(order.items || []).map(i => `${i.quantity}× ${i.food_name}`).join(', ')}</td>
+                                                        <td style={{ fontWeight: 600, color: '#16a34a' }}>₹{order.total_amount}</td>
+                                                        <td><span className={`role-tag ${order.status.toLowerCase()}`}>{order.status}</span></td>
+                                                    </tr>
+                                                ))}
+                                                {bookings.length === 0 && (
+                                                    <tr><td colSpan="6" style={{ textAlign: "center", color: "#94a3b8", padding: "32px 16px" }}>No orders found.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
+                            ) : adminView === "calendar" ? (
+                                <section className="admin-table-section">
+                                    <h3>Manage Calendar Events</h3>
+                                    <div className="canteen-panel-card" style={{ marginBottom: "20px" }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                                            <div className="canteen-form-group" style={{ margin: 0 }}>
+                                                <label>Event Title</label>
+                                                <input type="text" placeholder="Event Name..." value={eventForm.title} onChange={e => setEventForm({ ...eventForm, title: e.target.value })} />
+                                            </div>
+                                            <div className="canteen-form-group" style={{ margin: 0 }}>
+                                                <label>Date</label>
+                                                <input type="date" value={eventForm.event_date} onChange={e => setEventForm({ ...eventForm, event_date: e.target.value })} />
+                                            </div>
+                                        </div>
+                                        <div className="canteen-form-group">
+                                            <label>Description (Optional)</label>
+                                            <textarea rows="2" placeholder="More details..." value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontFamily: 'inherit' }}></textarea>
+                                        </div>
+                                        <button className="canteen-primary-btn" onClick={handleCreateEvent} disabled={eventSaving || !eventForm.title || !eventForm.event_date}>
+                                            {eventSaving ? "Saving..." : "Add to Calendar"}
+                                        </button>
+                                    </div>
+
+                                    <div className="admin-table-wrapper">
+                                        <table className="admin-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Title</th>
+                                                    <th>Description</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {events.length === 0 ? (
+                                                    <tr><td colSpan="4" style={{ textAlign: "center", color: "#94a3b8", padding: "32px 16px" }}>No upcoming events scheduled.</td></tr>
+                                                ) : (
+                                                    events.map((evt) => (
+                                                        <tr key={evt.id}>
+                                                            <td style={{ fontWeight: 600 }}>{new Date(evt.event_date).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                                                            <td>{evt.title}</td>
+                                                            <td style={{ fontSize: '13px', color: '#64748b' }}>{evt.description || "-"}</td>
+                                                            <td>
+                                                                <button className="table-btn delete-btn" onClick={() => handleDeleteEvent(evt.id)}>🗑️ Delete</button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
+                            ) : adminView === "manage_staff" ? (
                                 <section className="admin-table-section">
                                     <h3>Manage Staff</h3>
                                     <div className="admin-table-wrapper">
@@ -1021,16 +1422,26 @@ function Dashboard({ user, onLogout }) {
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <a
-                                                        href={cert.file_url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        style={{ display: "block", textAlign: "center", backgroundColor: "#f1f5f9", color: "#475569", padding: "8px 16px", borderRadius: "6px", textDecoration: "none", fontWeight: "500", fontSize: "14px", transition: "all 0.2s", border: "1px solid #e2e8f0" }}
-                                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = "#e2e8f0"; e.currentTarget.style.color = "#1e293b"; }}
-                                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; e.currentTarget.style.color = "#475569"; }}
-                                                    >
-                                                        Preview
-                                                    </a>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <a
+                                                            href={cert.file_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{ flex: 1, display: "block", textAlign: "center", backgroundColor: "#f1f5f9", color: "#475569", padding: "8px 16px", borderRadius: "6px", textDecoration: "none", fontWeight: "500", fontSize: "14px", transition: "all 0.2s", border: "1px solid #e2e8f0" }}
+                                                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = "#e2e8f0"; e.currentTarget.style.color = "#1e293b"; }}
+                                                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; e.currentTarget.style.color = "#475569"; }}
+                                                        >
+                                                            Preview
+                                                        </a>
+                                                        <button
+                                                            onClick={() => handleDeleteCertificate(cert.id)}
+                                                            style={{ display: "block", textAlign: "center", backgroundColor: "#fff", color: "#ef4444", padding: "8px 16px", borderRadius: "6px", border: "1px solid #fecaca", fontWeight: "500", fontSize: "14px", cursor: "pointer", transition: "all 0.2s" }}
+                                                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = "#fef2f2"; }}
+                                                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = "#fff"; }}
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -1378,7 +1789,7 @@ function Dashboard({ user, onLogout }) {
                                                                 background: order.status === "Confirmed" ? "#dcfce7" : order.status === "Completed" ? "#f1f5f9" : "#fef3c7",
                                                                 color: order.status === "Confirmed" ? "#166534" : order.status === "Completed" ? "#64748b" : "#92400e"
                                                             }}>{order.status}</span>
-                                                            
+
                                                             {order.status !== "Completed" && (
                                                                 <button
                                                                     onClick={() => handleCompleteOrder(order.id)}
@@ -1524,6 +1935,31 @@ function Dashboard({ user, onLogout }) {
                                     <span style={{ fontWeight: "600", fontSize: "15px" }}>Staff Panel</span>
                                 </button>
                             </div>
+                        </section>
+
+                        {/* Calendar Widget */}
+                        <section className="std-calendar-widget" style={{ marginTop: "30px", background: "white", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: "1px solid #e2e8f0" }}>
+                            <h3 className="std-section-title" style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b", marginBottom: "16px", display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                📅 Upcoming Events
+                            </h3>
+                            {events.length === 0 ? (
+                                <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>No upcoming events scheduled.</p>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {events.slice(0, 3).map(evt => (
+                                        <div key={evt.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                            <div style={{ padding: '8px 12px', backgroundColor: 'white', borderRadius: '8px', textAlign: 'center', minWidth: '55px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                                                <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{new Date(evt.event_date).toLocaleDateString('en-IN', { month: 'short' })}</div>
+                                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>{new Date(evt.event_date).getDate()}</div>
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>{evt.title}</h4>
+                                                {evt.description && <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>{evt.description}</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </section>
 
                         {/* Recent Orders List for Student */}

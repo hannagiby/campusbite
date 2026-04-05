@@ -2281,3 +2281,449 @@
         opacity: 1;
     }
 }
+
+/* ═══════════════════════════════════════════════
+   Analytics Dashboard Styles
+   ═══════════════════════════════════════════════ */
+
+.analytics-section {
+    animation: fadeIn 0.4s ease-out;
+}
+
+/* Analytics Button */
+.analytics-btn {
+    background-color: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+}
+
+.analytics-btn svg {
+    color: #6366f1;
+}
+
+/* Stat Cards Grid */
+.analytics-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 28px;
+}
+
+.analytics-stat-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid #f1f5f9;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.analytics-stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card-accent {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 4px 0 0 4px;
+}
+
+.stat-accent-purple {
+    background: linear-gradient(180deg, #8b5cf6, #6366f1);
+}
+
+.stat-accent-blue {
+    background: linear-gradient(180deg, #3b82f6, #2563eb);
+}
+
+.stat-accent-green {
+    background: linear-gradient(180deg, #10b981, #059669);
+}
+
+.stat-accent-amber {
+    background: linear-gradient(180deg, #f59e0b, #d97706);
+}
+
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-icon-purple {
+    background: #eef2ff;
+    color: #6366f1;
+}
+
+.stat-icon-blue {
+    background: #eff6ff;
+    color: #3b82f6;
+}
+
+.stat-icon-green {
+    background: #ecfdf5;
+    color: #10b981;
+}
+
+.stat-icon-amber {
+    background: #fffbeb;
+    color: #f59e0b;
+}
+
+.stat-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-card-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.stat-card-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Charts Grid */
+.analytics-charts-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.analytics-chart-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid #f1f5f9;
+    transition: box-shadow 0.3s ease;
+}
+
+.analytics-chart-card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.chart-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chart-container {
+    position: relative;
+    height: 280px;
+}
+
+.chart-container-donut {
+    height: 300px;
+}
+
+/* Announcements Panel */
+.announcements-panel {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid #f1f5f9;
+    margin-top: 8px;
+}
+
+.announcement-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.announcement-form-row {
+    display: flex;
+    gap: 12px;
+}
+
+.announcement-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.announcement-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.announcement-type-select {
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1e293b;
+    outline: none;
+    cursor: pointer;
+    background: white;
+    min-width: 140px;
+}
+
+.announcement-type-select:focus {
+    border-color: #6366f1;
+}
+
+.announcement-textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1e293b;
+    outline: none;
+    resize: vertical;
+    min-height: 70px;
+    box-sizing: border-box;
+}
+
+.announcement-textarea:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.announcement-send-btn {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.announcement-send-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+}
+
+.announcement-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.announcements-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.announcement-card {
+    border-radius: 12px;
+    padding: 18px 20px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s;
+}
+
+.announcement-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.ann-info {
+    background: #f8fafc;
+    border-left: 4px solid #3b82f6;
+}
+
+.ann-warning {
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
+}
+
+.ann-urgent {
+    background: #fef2f2;
+    border-left: 4px solid #ef4444;
+}
+
+.announcement-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.announcement-card-title {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.announcement-card-title h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.ann-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    width: fit-content;
+}
+
+.ann-badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.ann-badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.ann-badge-urgent {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.announcement-delete-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.announcement-delete-btn:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.announcement-card-message {
+    font-size: 14px;
+    color: #475569;
+    margin: 0 0 12px 0;
+    line-height: 1.6;
+}
+
+.announcement-card-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* Analytics Responsive */
+@media (max-width: 1024px) {
+    .analytics-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .analytics-charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .analytics-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card-value {
+        font-size: 24px;
+    }
+
+    .chart-container {
+        height: 220px;
+    }
+
+    .announcement-form-row {
+        flex-direction: column;
+    }
+
+    .announcement-type-select {
+        min-width: unset;
+    }
+}
+
+/* Admin active button state */
+.admin-action-btn.active {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+/* Event / Announcement Badges */
+.ann-type-badge {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.ann-badge-urgent {
+    background: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+}
+
+.ann-badge-info {
+    background: #eff6ff;
+    color: #3b82f6;
+    border: 1px solid #bfdbfe;
+}
+
+.ann-badge-warning {
+    background: #fffbeb;
+    color: #f59e0b;
+    border: 1px solid #fde68a;
+}
