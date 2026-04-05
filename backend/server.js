@@ -28,6 +28,8 @@ const announcementsRoutes = require("./routes/announcementsRoutes");
 app.use("/api/announcements", announcementsRoutes);
 const eventsRoutes = require("./routes/eventsRoutes");
 app.use("/api/events", eventsRoutes);
+const ratingRoutes = require("./routes/ratingRoutes");
+app.use("/api/ratings", ratingRoutes);
 
 // Start server directly
 app.listen(PORT, () => {

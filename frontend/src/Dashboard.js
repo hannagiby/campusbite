@@ -84,6 +84,10 @@ function Dashboard({ user, onLogout }) {
     const [orderTrends, setOrderTrends] = useState({ labels: [], orders: [], revenue: [] });
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
+    // Admin Feedback and Ratings State
+    const [adminRatings, setAdminRatings] = useState({ ratings: [], stats: { totalRatings: 0, avgRating: 0, avgFoodQuality: 0, avgDeliverySpeed: 0 } });
+    const [adminRatingsLoading, setAdminRatingsLoading] = useState(false);
+
 
     const [staffList, setStaffList] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -120,6 +124,33 @@ function Dashboard({ user, onLogout }) {
     const isAdmin = (user.role || "").toLowerCase() === "admin";
     const isCanteenStaff = (user.role || "").toLowerCase() === "canteen";
 
+    // Real-Time Alerts State
+    const baseAlerts = ["⏰ Rush hour approaching at 12:30 PM", "🎉 Special combo offers available today!"];
+    const [activeAlertIndex, setActiveAlertIndex] = useState(0);
+    const currentAlerts = React.useMemo(() => {
+        let dynamic = [];
+        if (menuStock && menuStock.length > 0) {
+            const lowStock = [...menuStock].filter(i => i.slots > 0 && i.slots <= 15).sort((a, b) => a.slots - b.slots);
+            if (lowStock.length > 0) {
+                dynamic.push(`🔥 ${lowStock[0].food_name} is selling fast — only ${lowStock[0].slots} left!`);
+            }
+            const highDemand = [...menuStock].filter(i => i.slots > 15).sort((a, b) => a.slots - b.slots);
+            if (highDemand.length > 0) {
+                dynamic.push(`⚡ ${highDemand[0].food_name} is trending right now!`);
+            }
+        }
+        return dynamic.length > 0 ? [...dynamic, ...baseAlerts] : ["🔥 Biryani is in high demand — book soon!", ...baseAlerts];
+    }, [menuStock]);
+
+    useEffect(() => {
+        if (!isAdmin && !isCanteenStaff) {
+            const interval = setInterval(() => {
+                setActiveAlertIndex(prev => (prev + 1) % currentAlerts.length);
+            }, 3500);
+            return () => clearInterval(interval);
+        }
+    }, [isAdmin, isCanteenStaff, currentAlerts.length]);
+
     // Events Calendar State
     const [events, setEvents] = useState([]);
     const [eventForm, setEventForm] = useState({ title: "", description: "", event_date: "", type: "event" });
@@ -128,6 +159,20 @@ function Dashboard({ user, onLogout }) {
     // Admin Order History State
     const [orderHistoryStartDate, setOrderHistoryStartDate] = useState("");
     const [orderHistoryEndDate, setOrderHistoryEndDate] = useState("");
+
+    // Order Rating / Feedback State
+    const [showRatingModal, setShowRatingModal] = useState(false);
+    const [ratingOrderId, setRatingOrderId] = useState(null);
+    const [ratingOrderItems, setRatingOrderItems] = useState([]);
+    const [ratingStars, setRatingStars] = useState(0);
+    const [ratingHover, setRatingHover] = useState(0);
+    const [ratingFeedback, setRatingFeedback] = useState("");
+    const [ratingFoodQuality, setRatingFoodQuality] = useState(0);
+    const [ratingFoodQualityHover, setRatingFoodQualityHover] = useState(0);
+    const [ratingAnonymous, setRatingAnonymous] = useState(false);
+    const [ratingSubmitState, setRatingSubmitState] = useState({ loading: false, error: "", success: "" });
+    const [orderRatings, setOrderRatings] = useState({}); // { orderId: ratingData }
+    const [ratingsLoaded, setRatingsLoaded] = useState(false);
 
     // Fetch resources
     useEffect(() => {
@@ -146,6 +191,8 @@ function Dashboard({ user, onLogout }) {
         if (!isAdmin && !isCanteenStaff && user && user.username) {
             checkGrievanceNotifications();
             fetchBookings();
+            fetchMenuStock();
+            fetchUserRatings();
         }
     }, [isAdmin, isCanteenStaff, user]);
 
@@ -236,8 +283,20 @@ function Dashboard({ user, onLogout }) {
         setAnalyticsLoading(false);
     };
 
-
-
+    // Fetch Admin Ratings
+    const fetchAdminRatings = async () => {
+        setAdminRatingsLoading(true);
+        try {
+            const res = await fetch("http://localhost:5000/api/ratings");
+            const data = await res.json();
+            if (res.ok) {
+                setAdminRatings(data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch admin ratings:", err);
+        }
+        setAdminRatingsLoading(false);
+    };
     const checkGrievanceNotifications = async () => {
         try {
             const res = await fetch(`http://localhost:5000/api/grievances/unnotified/${user.username}`);
@@ -873,6 +932,85 @@ function Dashboard({ user, onLogout }) {
         fetchBookings();
     };
 
+    // ─── Rating / Feedback Handlers ───
+
+    const fetchUserRatings = async () => {
+        if (!user || !user.username) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/ratings/user/${user.username}`);
+            const data = await res.json();
+            if (res.ok && data.ratings) {
+                const ratingsMap = {};
+                data.ratings.forEach(r => { ratingsMap[r.order_id] = r; });
+                setOrderRatings(ratingsMap);
+                setRatingsLoaded(true);
+            }
+        } catch (err) {
+            console.error("Failed to fetch ratings:", err);
+        }
+    };
+
+    const handleOpenRatingModal = (order) => {
+        setRatingOrderId(order.id);
+        setRatingOrderItems(order.items || []);
+        setRatingStars(0);
+        setRatingHover(0);
+        setRatingFeedback("");
+        setRatingFoodQuality(0);
+        setRatingFoodQualityHover(0);
+        setRatingAnonymous(false);
+        setRatingSubmitState({ loading: false, error: "", success: "" });
+        setShowRatingModal(true);
+    };
+
+    const handleSubmitRating = async () => {
+        if (ratingStars === 0) {
+            setRatingSubmitState({ loading: false, error: "Please select an overall rating.", success: "" });
+            return;
+        }
+
+        setRatingSubmitState({ loading: true, error: "", success: "" });
+        try {
+            const res = await fetch("http://localhost:5000/api/ratings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    order_id: ratingOrderId,
+                    user_username: user.username,
+                    user_name: user.name,
+                    rating: ratingStars,
+                    feedback: ratingFeedback.trim() || null,
+                    food_quality: ratingFoodQuality || null,
+                    is_anonymous: ratingAnonymous
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setRatingSubmitState({ loading: false, error: "", success: "Thank you for your feedback! 🎉" });
+                // Update local state
+                setOrderRatings(prev => ({ ...prev, [ratingOrderId]: data.rating }));
+                setTimeout(() => {
+                    setShowRatingModal(false);
+                }, 1500);
+            } else {
+                setRatingSubmitState({ loading: false, error: data.message || "Failed to submit rating.", success: "" });
+            }
+        } catch (err) {
+            setRatingSubmitState({ loading: false, error: "Server error. Please try again.", success: "" });
+        }
+    };
+
+    const getRatingLabel = (stars) => {
+        const labels = { 1: "Poor", 2: "Fair", 3: "Good", 4: "Very Good", 5: "Excellent" };
+        return labels[stars] || "";
+    };
+
+    const renderStars = (count, size = 20) => {
+        return Array.from({ length: 5 }, (_, i) => (
+            <span key={i} style={{ color: i < count ? "#f59e0b" : "#e2e8f0", fontSize: `${size}px` }}>★</span>
+        ));
+    };
+
     return (
         <div className="dashboard-page">
             {/* Notification Toast */}
@@ -917,6 +1055,116 @@ function Dashboard({ user, onLogout }) {
                                     Confirm Resolution
                                 </button>
                                 <button className="grievance-back-btn" onClick={() => setShowResolveModal(false)}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Order Rating / Feedback Modal */}
+            {showRatingModal && (
+                <div className="grievance-modal-overlay" onClick={() => setShowRatingModal(false)}>
+                    <div className="grievance-modal rating-modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="grievance-modal-header" style={{ paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+                            <h2>Rate Your Order</h2>
+                            <button className="grievance-modal-close" onClick={() => setShowRatingModal(false)}>✕</button>
+                        </div>
+                        <div className="grievance-modal-content" style={{ marginTop: '16px' }}>
+                            <div style={{ marginBottom: "20px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                                {ratingOrderItems.map((item, idx) => (
+                                    <span key={idx} style={{ background: "#f1f5f9", padding: "4px 10px", borderRadius: "16px", fontSize: "13px", color: "#475569", fontWeight: 500 }}>
+                                        {item.quantity}× {item.food_name}
+                                    </span>
+                                ))}
+                            </div>
+
+                            <div className="rating-section" style={{ textAlign: "center", marginBottom: "24px" }}>
+                                <p style={{ fontSize: "16px", fontWeight: 600, color: "#1e293b", marginBottom: "8px" }}>How was your overall experience?</p>
+                                <div className="stars-container" style={{ display: "flex", justifyContent: "center", gap: "8px", cursor: "pointer" }}>
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <svg
+                                            key={star}
+                                            width="40" height="40" viewBox="0 0 24 24"
+                                            fill={(ratingHover || ratingStars) >= star ? "#fbbf24" : "transparent"}
+                                            stroke={(ratingHover || ratingStars) >= star ? "#f59e0b" : "#cbd5e1"}
+                                            strokeWidth="1.5"
+                                            strokeLinecap="round" strokeLinejoin="round"
+                                            onMouseEnter={() => setRatingHover(star)}
+                                            onMouseLeave={() => setRatingHover(0)}
+                                            onClick={() => setRatingStars(star)}
+                                            style={{ transition: "all 0.15s ease", transform: (ratingHover || ratingStars) >= star ? "scale(1.1)" : "scale(1)" }}
+                                        >
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                        </svg>
+                                    ))}
+                                </div>
+                                <div style={{ height: "20px", marginTop: "8px" }}>
+                                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#f59e0b" }}>
+                                        {getRatingLabel(ratingHover || ratingStars)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="sub-ratings" style={{ background: "#f8fafc", padding: "16px", borderRadius: "12px", marginBottom: "20px" }}>
+                                <div className="sub-rating-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ fontSize: "14px", color: "#475569", fontWeight: 500 }}>Food Quality</span>
+                                    <div style={{ display: "flex", gap: "4px", cursor: "pointer" }}>
+                                        {[1, 2, 3, 4, 5].map(star => (
+                                            <svg key={star} width="20" height="20" viewBox="0 0 24 24" fill={(ratingFoodQualityHover || ratingFoodQuality) >= star ? "#fbbf24" : "transparent"} stroke={(ratingFoodQualityHover || ratingFoodQuality) >= star ? "#f59e0b" : "#cbd5e1"} strokeWidth="1.5" onMouseEnter={() => setRatingFoodQualityHover(star)} onMouseLeave={() => setRatingFoodQualityHover(0)} onClick={() => setRatingFoodQuality(star)}>
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                            </svg>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="canteen-form-group" style={{ marginBottom: "20px" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px", color: "#475569" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={ratingAnonymous}
+                                        onChange={(e) => setRatingAnonymous(e.target.checked)}
+                                        style={{ width: "16px", height: "16px", accentColor: "var(--primary-emerald)" }}
+                                    />
+                                    Submit as Anonymous
+                                </label>
+                            </div>
+
+                            <div className="canteen-form-group" style={{ marginBottom: "24px" }}>
+                                <label style={{ fontSize: "14px", fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Add more details (Optional)</label>
+                                <textarea
+                                    className="canteen-input"
+                                    placeholder="Tell us what you liked or how we can improve..."
+                                    value={ratingFeedback}
+                                    onChange={(e) => setRatingFeedback(e.target.value)}
+                                    rows="3"
+                                    style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#fff", resize: "none", fontSize: "14px", fontFamily: "inherit" }}
+                                />
+                            </div>
+
+                            {ratingSubmitState.error && <p style={{ color: "#ef4444", fontSize: "13px", marginBottom: "16px", textAlign: "center" }}>{ratingSubmitState.error}</p>}
+                            {ratingSubmitState.success && <p style={{ color: "#10b981", fontSize: "13px", marginBottom: "16px", textAlign: "center", fontWeight: 600 }}>{ratingSubmitState.success}</p>}
+
+                            <div className="grievance-modal-actions" style={{ gap: "12px" }}>
+                                <button
+                                    className="grievance-submit-btn"
+                                    onClick={handleSubmitRating}
+                                    disabled={ratingSubmitState.loading || ratingStars === 0}
+                                    style={{ flex: 1, padding: "12px", opacity: (ratingSubmitState.loading || ratingStars === 0) ? 0.6 : 1, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px", cursor: (ratingSubmitState.loading || ratingStars === 0) ? "not-allowed" : "pointer" }}
+                                >
+                                    {ratingSubmitState.loading ? (
+                                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: "1rem", height: "1rem", borderWidth: "0.2em", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }}></span>
+                                    ) : (
+                                        <>Submit Feedback <span role="img" aria-label="send">🚀</span></>
+                                    )}
+                                </button>
+                                <button
+                                    className="grievance-back-btn"
+                                    onClick={() => setShowRatingModal(false)}
+                                    style={{ flex: "none", width: "100px", padding: "12px" }}
+                                >
                                     Cancel
                                 </button>
                             </div>
@@ -1031,6 +1279,12 @@ function Dashboard({ user, onLogout }) {
                                         <line x1="12" y1="3" x2="12" y2="15"></line>
                                     </svg>
                                     <span>Certificates</span>
+                                </button>
+                                <button className={`admin-action-btn feedback-btn ${adminView === "view_feedback" ? "active" : ""}`} onClick={() => { setAdminView("view_feedback"); fetchAdminRatings(); }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                    <span>Feedback</span>
                                 </button>
                                 <button className={`admin-action-btn ${adminView === "calendar" ? "active" : ""}`} onClick={() => setAdminView("calendar")}>
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1519,6 +1773,86 @@ function Dashboard({ user, onLogout }) {
                                         </div>
                                     )}
                                 </section>
+                            ) : adminView === "view_feedback" ? (
+                                <section className="admin-feedback-section" style={{ marginTop: "30px" }}>
+                                    <div className="admin-section-header">
+                                        <h3>Student & Faculty Feedback</h3>
+                                        <p>Review customer ratings, food quality scores, and detailed comments.</p>
+                                    </div>
+
+                                    {adminRatingsLoading ? (
+                                        <div className="grievance-empty-state">
+                                            <div className="spinner" style={{ width: "40px", height: "40px", border: "4px solid #f3f4f6", borderTopColor: "var(--primary-emerald)", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 16px" }}></div>
+                                            <p>Loading feedback data...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="stats-cards-grid" style={{ marginBottom: "24px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "24px" }}>
+                                                <div className="analytics-card" style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)", borderColor: "#fcd34d" }}>
+                                                    <div className="stat-title" style={{ color: "#92400e" }}>Overall Average</div>
+                                                    <div className="stat-value" style={{ color: "#b45309", display: "flex", alignItems: "center", gap: "8px" }}>
+                                                        <AnimatedCounter target={adminRatings.stats?.avgRating || 0} />
+                                                        <span style={{ fontSize: "18px" }}>/ 5.0</span>
+                                                    </div>
+                                                    <div className="stat-icon">⭐</div>
+                                                </div>
+                                                <div className="analytics-card" style={{ background: "linear-gradient(135deg, #f0fdf4, #dcfce7)", borderColor: "#bbf7d0" }}>
+                                                    <div className="stat-title" style={{ color: "#166534" }}>Food Quality</div>
+                                                    <div className="stat-value" style={{ color: "#15803d", display: "flex", alignItems: "center", gap: "8px" }}>
+                                                        <AnimatedCounter target={adminRatings.stats?.avgFoodQuality || 0} />
+                                                        <span style={{ fontSize: "18px" }}>/ 5.0</span>
+                                                    </div>
+                                                    <div className="stat-icon">🍲</div>
+                                                </div>
+                                                <div className="analytics-card" style={{ background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)", borderColor: "#cbd5e1" }}>
+                                                    <div className="stat-title" style={{ color: "#334155" }}>Total Ratings</div>
+                                                    <div className="stat-value" style={{ color: "#1e293b" }}>
+                                                        <AnimatedCounter target={adminRatings.stats?.totalRatings || 0} />
+                                                    </div>
+                                                    <div className="stat-icon">📊</div>
+                                                </div>
+                                            </div>
+
+                                            {adminRatings.ratings && adminRatings.ratings.length === 0 ? (
+                                                <div className="grievance-empty-state">
+                                                    <span style={{ fontSize: "40px", display: "block", marginBottom: "16px" }}>⭐</span>
+                                                    <h4>No ratings yet</h4>
+                                                    <p>When students and faculty submit feedack, it will appear here.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="feedback-list-grid" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                                                    {adminRatings.ratings && adminRatings.ratings.map(rating => (
+                                                        <div key={rating.id} className="user-grievance-card" style={{ padding: "20px" }}>
+                                                            <div className="ug-card-header" style={{ marginBottom: "12px" }}>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                                                    <span className="ug-date" style={{ fontWeight: 600, color: "#1e293b" }}>{rating.user_name}</span>
+                                                                    {!rating.is_anonymous && (
+                                                                        <span style={{ fontSize: "12px", color: "#64748b", background: "#f1f5f9", padding: "2px 8px", borderRadius: "12px" }}>@{rating.user_username}</span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: "#fffbeb", padding: "4px 8px", borderRadius: "12px", border: "1px solid #fde68a" }}>
+                                                                    <span style={{ color: "#f59e0b", fontSize: "14px" }}>★</span>
+                                                                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#92400e" }}>{rating.rating}/5</span>
+                                                                </div>
+                                                            </div>
+                                                            {rating.feedback && (
+                                                                <p className="ug-card-details" style={{ fontSize: "15px", color: "#334155", fontStyle: "italic", marginBottom: "16px", padding: "12px", background: "#f8fafc", borderRadius: "8px", borderLeft: "4px solid #cbd5e1" }}>"{rating.feedback}"</p>
+                                                            )}
+                                                            <div className="ug-card-footer" style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
+                                                                <span className="ug-date" style={{ color: "#94a3b8" }}>
+                                                                    {new Date(rating.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                                                </span>
+                                                                <div style={{ display: "flex", gap: "12px" }}>
+                                                                    {rating.food_quality && <span style={{ fontSize: "12px", color: "#475569", display: "flex", alignItems: "center", gap: "4px" }}><span style={{ color: "#16a34a" }}>🍽️</span> Quality: {rating.food_quality}/5</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </section>
                             ) : null}
                         </>
                     ) : isCanteenStaff ? (
@@ -1755,18 +2089,23 @@ function Dashboard({ user, onLogout }) {
                                                         gap: "16px"
                                                     }}>
                                                         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                                                            <div style={{
-                                                                background: "linear-gradient(135deg, #16a34a, #15803d)",
-                                                                color: "white",
-                                                                borderRadius: "10px",
-                                                                padding: "8px 14px",
-                                                                fontWeight: 800,
-                                                                fontSize: "18px",
-                                                                fontFamily: "'Courier New', monospace",
-                                                                minWidth: "70px",
-                                                                textAlign: "center"
-                                                            }}>
-                                                                {order.token_number}
+                                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                                                                <div style={{
+                                                                    background: "linear-gradient(135deg, #16a34a, #15803d)",
+                                                                    color: "white",
+                                                                    borderRadius: "10px",
+                                                                    padding: "8px 14px",
+                                                                    fontWeight: 800,
+                                                                    fontSize: "18px",
+                                                                    fontFamily: "'Courier New', monospace",
+                                                                    minWidth: "70px",
+                                                                    textAlign: "center"
+                                                                }}>
+                                                                    {order.token_number}
+                                                                </div>
+                                                                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "600" }}>
+                                                                    {new Date(order.created_at).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}
+                                                                </span>
                                                             </div>
                                                             <div>
                                                                 <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#1e293b" }}>{order.user_name}</p>
@@ -1774,7 +2113,7 @@ function Dashboard({ user, onLogout }) {
                                                                     {(order.items || []).map(i => `${i.quantity}× ${i.food_name}`).join(", ")}
                                                                 </p>
                                                                 <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8" }}>
-                                                                    {new Date(order.created_at).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                                                                    {new Date(order.created_at).toLocaleString("en-IN", { day: '2-digit', month: 'short', hour: "2-digit", minute: "2-digit" })}
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -1819,6 +2158,13 @@ function Dashboard({ user, onLogout }) {
                     ) : (
                         /* ─── Student / Faculty Dashboard ─── */
                         <>
+                            {/* Real-time Alert Banner */}
+                            <div className="real-time-alert-banner">
+                                <div className="alert-content bounce-in" key={activeAlertIndex}>
+                                    {currentAlerts[activeAlertIndex]}
+                                </div>
+                            </div>
+
                             <section className="welcome-card">
                                 <div className="welcome-info">
                                     <h2>Welcome back, {user.name}! <span className="wave-emoji">👋</span></h2>
@@ -1937,30 +2283,6 @@ function Dashboard({ user, onLogout }) {
                             </div>
                         </section>
 
-                        {/* Calendar Widget */}
-                        <section className="std-calendar-widget" style={{ marginTop: "30px", background: "white", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: "1px solid #e2e8f0" }}>
-                            <h3 className="std-section-title" style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b", marginBottom: "16px", display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                📅 Upcoming Events
-                            </h3>
-                            {events.length === 0 ? (
-                                <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>No upcoming events scheduled.</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    {events.slice(0, 3).map(evt => (
-                                        <div key={evt.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                                            <div style={{ padding: '8px 12px', backgroundColor: 'white', borderRadius: '8px', textAlign: 'center', minWidth: '55px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                                                <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{new Date(evt.event_date).toLocaleDateString('en-IN', { month: 'short' })}</div>
-                                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>{new Date(evt.event_date).getDate()}</div>
-                                            </div>
-                                            <div>
-                                                <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>{evt.title}</h4>
-                                                {evt.description && <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>{evt.description}</p>}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </section>
 
                         {/* Recent Orders List for Student */}
                         <section className="std-orders-list-section" style={{ marginTop: "20px" }}>
@@ -2008,7 +2330,7 @@ function Dashboard({ user, onLogout }) {
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <div style={{ textAlign: "right" }}>
+                                                <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
                                                     <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#16a34a" }}>₹{order.total_amount}</p>
                                                     <span style={{
                                                         display: "inline-block",
@@ -2022,8 +2344,45 @@ function Dashboard({ user, onLogout }) {
                                                     }}>
                                                         {order.status}
                                                     </span>
+
+                                                    {/* Rating Button Section */}
+                                                    {order.status === "Completed" && (
+                                                        <>
+                                                            {orderRatings[order.id] ? (
+                                                                <div style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: "#fffbeb", padding: "4px 8px", borderRadius: "12px", border: "1px solid #fde68a" }}>
+                                                                    <span style={{ color: "#f59e0b", fontSize: "12px" }}>★</span>
+                                                                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#92400e" }}>{orderRatings[order.id].rating}/5</span>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleOpenRatingModal(order)}
+                                                                    style={{
+                                                                        marginTop: "4px",
+                                                                        padding: "6px 12px",
+                                                                        fontSize: "12px",
+                                                                        background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                                                                        color: "white",
+                                                                        border: "none",
+                                                                        borderRadius: "6px",
+                                                                        cursor: "pointer",
+                                                                        fontWeight: 600,
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        gap: "4px",
+                                                                        boxShadow: "0 2px 4px rgba(245, 158, 11, 0.2)",
+                                                                        transition: "transform 0.2s"
+                                                                    }}
+                                                                    onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
+                                                                    onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
+                                                                >
+                                                                    <span style={{ fontSize: "14px" }}>★</span> Rate Order
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
+
                                         ))
                                     }
                                 </div>
@@ -2034,7 +2393,7 @@ function Dashboard({ user, onLogout }) {
                     /* ─── Staff Panel View ─── */
                     <section className="staff-panel-section">
                         <div className="cert-view-header">
-                            <button className="back-btn" onClick={() => setView("dashboard")}>
+                            <button className="back-btn" onClick={() => setView("student_dashboard")}>
                                 <span>←</span> Back
                             </button>
                             <h2>Canteen Staff</h2>
@@ -2081,7 +2440,7 @@ function Dashboard({ user, onLogout }) {
                     /* ─── Certificate View ─── */
                     <section className="cert-view-section">
                         <div className="cert-view-header">
-                            <button className="back-btn" onClick={() => setView("dashboard")}>
+                            <button className="back-btn" onClick={() => setView("student_dashboard")}>
                                 <span>←</span> Back
                             </button>
                             <h2>Food Certificates</h2>
