@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import html2canvas from "html2canvas";
 import "./Payment.css";
 
 function Payment({ cart, totalAmount, user, onBackToCart, onBackToDashboard }) {
@@ -98,11 +99,30 @@ function Payment({ cart, totalAmount, user, onBackToCart, onBackToDashboard }) {
         }
     };
 
+    const handleDownloadToken = async () => {
+        if (!paymentData) return;
+        
+        const receiptElement = document.getElementById("receipt-card-download");
+        if (!receiptElement) return;
+
+        try {
+            const canvas = await html2canvas(receiptElement, { scale: 2 });
+            const dataUrl = canvas.toDataURL("image/png");
+            
+            const link = document.createElement("a");
+            link.download = `CampusBite_Token_${paymentData.token}.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (error) {
+            console.error("Error generating receipt image:", error);
+        }
+    };
+
     // ─── Success Screen (Receipt & Token) ───
     if (status === "success" && paymentData) {
         return (
             <div className="payment-container">
-                <div className="payment-result-card receipt-card">
+                <div id="receipt-card-download" className="payment-result-card receipt-card" style={{ backgroundColor: '#fff' }}>
                     <div className="receipt-header">
                         <div className="result-icon success">✅</div>
                         <h2 className="success-title">Payment Successful!</h2>
@@ -152,7 +172,14 @@ function Payment({ cart, totalAmount, user, onBackToCart, onBackToDashboard }) {
                         </div>
                     </div>
 
-                    <div className="result-actions mt-24">
+                    <div className="result-actions mt-24" style={{ display: 'flex', gap: '10px' }} data-html2canvas-ignore="true">
+                        <button
+                            className="result-btn-primary"
+                            onClick={handleDownloadToken}
+                            style={{ backgroundColor: '#A8E6CF', color: '#1a4331', border: '1px solid #8acfae', boxShadow: '0 2px 4px rgba(168,230,207,0.3)' }}
+                        >
+                            ⬇ Download Token
+                        </button>
                         <button
                             className="result-btn-primary success-btn"
                             onClick={onBackToDashboard}
